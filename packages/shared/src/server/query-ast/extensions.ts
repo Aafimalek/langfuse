@@ -225,14 +225,15 @@ export function mapValue<V = number>(
   return subscript(map, key, false);
 }
 
+/** `container[key]` over a map or an array; a string key is bound. */
 function subscript<V>(
-  map: Expression<Record<string, V>>,
-  key: string | Expression<string>,
+  container: Expression<Record<string, V> | V[]>,
+  key: string | Expression<string | number>,
   metadataLookup: boolean,
 ): ChExpression<V> {
   return new ExpressionWrapper<ClickHouseDatabase, keyof ClickHouseDatabase, V>(
     ArrayIndexNode.create(
-      map.toOperationNode(),
+      container.toOperationNode(),
       typeof key === "string" ? ValueNode.create(key) : key.toOperationNode(),
       metadataLookup,
     ) as unknown as OperationNode,
@@ -555,12 +556,7 @@ export function arrayElement<T>(
   array: Expression<T[]>,
   index: Expression<number>,
 ): ChExpression<T> {
-  return new ExpressionWrapper<ClickHouseDatabase, keyof ClickHouseDatabase, T>(
-    ArrayIndexNode.create(
-      array.toOperationNode(),
-      index.toOperationNode(),
-    ) as unknown as OperationNode,
-  );
+  return subscript(array, index, false);
 }
 
 /** ClickHouse `toNullable(value)`. */
