@@ -296,16 +296,19 @@ describe("tupleArrayField", () => {
   it.each([
     [
       "not a column reference",
+      "FunctionNode",
       (eb: ExpressionBuilder<{ e: ClickHouseDatabase["events"] }, "e">) =>
         arrayDistinct(eb.ref("e.skills_available")),
     ],
     [
       "an unqualified column",
+      "skills_available",
       (eb: ExpressionBuilder<{ e: ClickHouseDatabase["events"] }, "e">) =>
         eb.ref("skills_available"),
     ],
     [
       "a star",
+      "e.*",
       // e.*
       () =>
         new ExpressionWrapper<
@@ -316,6 +319,7 @@ describe("tupleArrayField", () => {
     ],
     [
       "a schema-qualified column",
+      "default.e.skills_available",
       // default.e.skills_available
       () =>
         new ExpressionWrapper<
@@ -329,12 +333,13 @@ describe("tupleArrayField", () => {
           ),
         ),
     ],
-  ])("rejects %s", (_name, column) => {
-    expect(() =>
+  ])("rejects %s", (_name, passed, column) => {
+    const build = () =>
       getClickhouseKysely()
         .selectFrom("events as e")
-        .select((eb) => [tupleArrayField(column(eb), "skillName").as("names")]),
-    ).toThrow(QueryCompileError);
+        .select((eb) => [tupleArrayField(column(eb), "skillName").as("names")]);
+    expect(build).toThrow(QueryCompileError);
+    expect(build).toThrow(`, got ${passed}.`);
   });
 });
 

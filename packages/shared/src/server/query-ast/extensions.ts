@@ -597,16 +597,7 @@ export function tupleArrayField<R, K extends keyof R & string>(
   field: K,
 ): ChExpression<Array<R[K]>> {
   const node = column.toOperationNode();
-  if (
-    !ReferenceNode.is(node) ||
-    !ColumnNode.is(node.column) ||
-    node.table === undefined ||
-    node.table.table.schema !== undefined
-  ) {
-    throw new QueryCompileError(
-      `tupleArrayField reads a subcolumn of a qualified column: pass eb.ref("<alias>.<column>"), got ${node.kind}.`,
-    );
-  }
+  assertQualifiedColumn(node, "tupleArrayField");
   // `<qualifier>.<column>.<field>`, written as schema.table.column.
   return new ExpressionWrapper(
     ReferenceNode.create(
@@ -617,6 +608,37 @@ export function tupleArrayField<R, K extends keyof R & string>(
       ),
     ) as unknown as OperationNode,
   );
+}
+
+/** Throws unless `node` is `q.<column>` with a plain qualifier `q`. */
+function assertQualifiedColumn(
+  node: OperationNode,
+  helper: string,
+): asserts node is ReferenceNode & { column: ColumnNode; table: TableNode } {
+  if (
+    ReferenceNode.is(node) &&
+    ColumnNode.is(node.column) &&
+    node.table !== undefined &&
+    node.table.table.schema === undefined
+  ) {
+    return;
+  }
+  throw new QueryCompileError(
+    `${helper} reads a subcolumn of a qualified column: pass eb.ref("<alias>.<column>"), got ${describeReference(node)}.`,
+  );
+}
+
+/** A reference as written (`col`, `q.col`, `s.q.*`); any other node by its kind. */
+function describeReference(node: OperationNode): string {
+  if (!ReferenceNode.is(node)) return node.kind;
+  const table = node.table?.table;
+  return [
+    table?.schema?.name,
+    table?.identifier.name,
+    ColumnNode.is(node.column) ? node.column.column.name : "*",
+  ]
+    .filter((part) => part !== undefined)
+    .join(".");
 }
 
 /**
