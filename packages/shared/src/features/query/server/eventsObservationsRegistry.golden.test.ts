@@ -10,10 +10,7 @@ import {
   clickhouseLocalAvailable,
   executeClickhouseLocal,
 } from "../../../server/repositories/goldenHarness";
-import {
-  literal,
-  type TemplateAggregate,
-} from "../../../server/query-ast/extensions";
+import { literal } from "../../../server/query-ast/extensions";
 import type { ClickHouseDatabase } from "../../../server/query-ast/schema";
 import { eventsObservationsView } from "../dataModel";
 import {
@@ -177,10 +174,8 @@ describe("v2 observations registry", () => {
 
   it("rejects a slot the measure does not declare", () => {
     const apply = () =>
-      aggregationSlot<Record<string, TemplateAggregate>>(
-        { agg1: "any" },
-        "two",
-      )("agg2", literal(1));
+      // @ts-expect-error "agg2" is not a declared slot
+      aggregationSlot({ agg1: "any" }, "two")("agg2", literal(1));
     expect(apply).toThrow(QueryCompileError);
     expect(apply).toThrow('Measure has no aggregation slot "agg2".');
   });
