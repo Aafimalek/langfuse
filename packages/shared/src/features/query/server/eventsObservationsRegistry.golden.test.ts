@@ -5,6 +5,7 @@ import {
   renderClickhouseExpression,
 } from "../../../server/query-ast/compile";
 import { getClickhouseKysely } from "../../../server/query-ast/dialect";
+import { QueryCompileError } from "../../../server/query-ast/errors";
 import {
   clickhouseLocalAvailable,
   executeClickhouseLocal,
@@ -175,12 +176,13 @@ describe("v2 observations registry", () => {
   });
 
   it("rejects a slot the measure does not declare", () => {
-    expect(() =>
+    const apply = () =>
       aggregationSlot<Record<string, TemplateAggregate>>(
         { agg1: "any" },
         "two",
-      )("agg2", literal(1)),
-    ).toThrow('Measure has no aggregation slot "agg2".');
+      )("agg2", literal(1));
+    expect(apply).toThrow(QueryCompileError);
+    expect(apply).toThrow('Measure has no aggregation slot "agg2".');
   });
 });
 

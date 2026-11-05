@@ -43,6 +43,7 @@ import {
   type TemplateAggregate,
   type TemplateAggregateResult,
 } from "../../../server/query-ast/extensions";
+import { QueryCompileError } from "../../../server/query-ast/errors";
 import type { ClickHouseDatabase } from "../../../server/query-ast/schema";
 import {
   AI_GATEWAY_KEY_OWNER_USER_ID_METADATA_KEY,
@@ -149,7 +150,7 @@ export function aggregationSlot<A extends Record<string, TemplateAggregate>>(
   return (slot, value) => {
     const fn = aggs[slot];
     if (fn === undefined) {
-      throw new Error(`Measure has no aggregation slot "${slot}".`);
+      throw new QueryCompileError(`Measure has no aggregation slot "${slot}".`);
     }
     return templateAggregate(fn, value);
   };

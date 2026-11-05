@@ -29,7 +29,9 @@ changing how it emits SQL.
 - `extensions.ts` — the `$call` helpers (`arrayJoin`, `limitBy`, `useFinal`,
   `includeDeleted`, `softDeleteAfterLimit`) and typed ClickHouse functions and
   aggregates (`argMaxIf`, `countIf`, `sumMap`, `multiIf`, `metadataValue`,
-  `literal`, …) that take `eb.ref(...)` expressions.
+  `arrayDistinct`, `countEqual`, `indexOf`, `arrayElement`, `tupleArrayField`,
+  `toNullable`, `typedNull`, `formatDateTime`, `templateAggregate`, `literal`,
+  …) that take `eb.ref(...)` expressions.
 - `views.ts` / `dedup.ts` / `softDelete.ts` — virtual views as CTEs, per-table
   dedup lowering, and soft-delete filtering.
 - `fixtures/catalog.ts` — test-only catalog of builder queries exercising the
@@ -238,6 +240,23 @@ db.selectFrom("events as e")
 
 Selecting `metadataValue(...)` reads the truncated `metadata_values`, so it
 routes that relation to `events_full`.
+
+**Read one field of an `Array(Tuple(…))` column** (`tupleArrayField` — the
+field as a subcolumn, an array with one element per tuple; the column must be a
+qualified `eb.ref("<alias>.<column>")`, anything else throws):
+
+```ts
+db.selectFrom("events as e").select((eb) => [
+  tupleArrayField(eb.ref("e.skills_available"), "skillName").as("names"),
+]);
+// select e.skills_available.skillName as names from events_core as e …
+```
+
+Arguments ClickHouse requires to be constants are inlined, never bound: pass
+`literal(...)` for the `formatDateTime` format, and `typedNull` takes its type
+as a fixed string. Value arguments such as the `arrayElement` index are
+ordinary expressions; a JS value there goes through `literal(...)` (inlined) or
+a bound parameter like any other.
 
 ## Developing the dialect
 
