@@ -1,4 +1,12 @@
-import { expressionBuilder, sql, type ExpressionBuilder } from "kysely";
+import {
+  ColumnNode,
+  ExpressionWrapper,
+  ReferenceNode,
+  TableNode,
+  expressionBuilder,
+  sql,
+  type ExpressionBuilder,
+} from "kysely";
 import { describe, expect, expectTypeOf, it } from "vitest";
 
 import {
@@ -13,6 +21,7 @@ import {
   UnscopedRelationError,
 } from "./errors";
 import {
+  arrayDistinct,
   arrayExists,
   arrayLength,
   arrayMap,
@@ -26,6 +35,7 @@ import {
   metadataMap,
   metadataValue,
   startsWith,
+  tupleArrayField,
   uniq,
   uniqIf,
 } from "./extensions";
@@ -265,6 +275,64 @@ describe("leftUTF8", () => {
       getClickhouseKysely()
         .selectFrom("events as e")
         .select((eb) => [leftUTF8(eb.ref("e.input"), length).as("input")]),
+    ).toThrow(QueryCompileError);
+  });
+});
+
+describe("tupleArrayField", () => {
+  it("reads a named tuple element as a subcolumn and stays on events_core", () => {
+    const qb = getClickhouseKysely()
+      .selectFrom("events as e")
+      .select((eb) => [
+        tupleArrayField(eb.ref("e.skills_available"), "skillName").as("names"),
+      ]);
+
+    const { sql: compiled } = compileClickhouseQuery(qb, projectId);
+    expect(compiled).toContain("e.skills_available.skillName as names");
+    expect(compiled).toContain("from events_core as e");
+  });
+
+  it.each([
+    [
+      "not a column reference",
+      (eb: ExpressionBuilder<{ e: ClickHouseDatabase["events"] }, "e">) =>
+        arrayDistinct(eb.ref("e.skills_available")),
+    ],
+    [
+      "an unqualified column",
+      (eb: ExpressionBuilder<{ e: ClickHouseDatabase["events"] }, "e">) =>
+        eb.ref("skills_available"),
+    ],
+    [
+      "a star",
+      // e.*
+      () =>
+        new ExpressionWrapper<
+          { e: ClickHouseDatabase["events"] },
+          "e",
+          ClickHouseDatabase["events"]["skills_available"]
+        >(ReferenceNode.createSelectAll(TableNode.create("e"))),
+    ],
+    [
+      "a schema-qualified column",
+      // default.e.skills_available
+      () =>
+        new ExpressionWrapper<
+          { e: ClickHouseDatabase["events"] },
+          "e",
+          ClickHouseDatabase["events"]["skills_available"]
+        >(
+          ReferenceNode.create(
+            ColumnNode.create("skills_available"),
+            TableNode.createWithSchema("default", "e"),
+          ),
+        ),
+    ],
+  ])("rejects %s", (_name, column) => {
+    expect(() =>
+      getClickhouseKysely()
+        .selectFrom("events as e")
+        .select((eb) => [tupleArrayField(column(eb), "skillName").as("names")]),
     ).toThrow(QueryCompileError);
   });
 });

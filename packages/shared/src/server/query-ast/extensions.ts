@@ -508,6 +508,118 @@ export function sumMap<V>(
   return aggregate("sumMap", [map]);
 }
 
+/** Aggregates a dashboard measure template may apply to a row value. */
+export type TemplateAggregate = "any" | "count" | "sum" | "sumMap";
+
+/**
+ * `fn(value)` for a {@link TemplateAggregate}. Typed as `value`: `any` and
+ * `sumMap` keep its type, `sum` and `count` give a number, which matches a
+ * numeric `value` only.
+ */
+export function templateAggregate<T>(
+  fn: TemplateAggregate,
+  value: Expression<T>,
+): ChExpression<T> {
+  return aggregate(fn, [value]);
+}
+
+/** ClickHouse `arrayDistinct(array)`: the distinct elements, in first-seen order. */
+export function arrayDistinct<T>(array: Expression<T[]>): ChExpression<T[]> {
+  return functionCall("arrayDistinct", [array]);
+}
+
+/** ClickHouse `countEqual(array, value)`: how often `value` occurs in `array`. */
+export function countEqual<T>(
+  array: Expression<T[]>,
+  value: Expression<T>,
+): ChExpression<number> {
+  return functionCall("countEqual", [array, value]);
+}
+
+/** ClickHouse `indexOf(array, value)`: the 1-based position of `value`, 0 if absent. */
+export function indexOf<T>(
+  array: Expression<T[]>,
+  value: Expression<T>,
+): ChExpression<number> {
+  return functionCall("indexOf", [array, value]);
+}
+
+/**
+ * `array[index]` with a 1-based `index`; the element type's default (`''`,
+ * `0`) when out of range.
+ */
+export function arrayElement<T>(
+  array: Expression<T[]>,
+  index: Expression<number>,
+): ChExpression<T> {
+  return new ExpressionWrapper<ClickHouseDatabase, keyof ClickHouseDatabase, T>(
+    ArrayIndexNode.create(
+      array.toOperationNode(),
+      index.toOperationNode(),
+    ) as unknown as OperationNode,
+  );
+}
+
+/** ClickHouse `toNullable(value)`. */
+export function toNullable<T>(value: Expression<T>): ChExpression<T | null> {
+  return functionCall("toNullable", [value]);
+}
+
+/**
+ * A typed NULL: `CAST(NULL, 'Nullable(Int64)')`, the same expression as
+ * `CAST(NULL AS Nullable(Int64))`.
+ */
+export function typedNull(type: "Nullable(Int64)"): ChExpression<null> {
+  return functionCall("CAST", [
+    ValueNode.createImmediate(null),
+    ValueNode.createImmediate(type),
+  ]);
+}
+
+/**
+ * ClickHouse `formatDateTime(value, format)`. Pass the format as
+ * `literal(...)`: ClickHouse requires a constant.
+ */
+export function formatDateTime(
+  value: Expression<Date>,
+  format: Expression<string>,
+): ChExpression<string> {
+  return functionCall("formatDateTime", [value, format]);
+}
+
+/**
+ * One named element of every tuple in an `Array(Tuple(…))` column, as an
+ * array: `q.skills_available` and `skillName` → `q.skills_available.skillName`.
+ * `column` must be a qualified column reference (`eb.ref("q.col")`); anything
+ * else throws, since only a column has subcolumns.
+ */
+export function tupleArrayField<R, K extends keyof R & string>(
+  column: Expression<R[]>,
+  field: K,
+): ChExpression<Array<R[K]>> {
+  const node = column.toOperationNode();
+  if (
+    !ReferenceNode.is(node) ||
+    !ColumnNode.is(node.column) ||
+    node.table === undefined ||
+    node.table.table.schema !== undefined
+  ) {
+    throw new QueryCompileError(
+      `tupleArrayField reads a subcolumn of a qualified column: pass eb.ref("<alias>.<column>"), got ${node.kind}.`,
+    );
+  }
+  // `<qualifier>.<column>.<field>`, written as schema.table.column.
+  return new ExpressionWrapper(
+    ReferenceNode.create(
+      ColumnNode.create(field),
+      TableNode.createWithSchema(
+        node.table.table.identifier.name,
+        node.column.column.name,
+      ),
+    ) as unknown as OperationNode,
+  );
+}
+
 /**
  * ClickHouse `leftUTF8(expression, length)`. The length is inlined as an
  * integer literal; it must be a positive integer.
