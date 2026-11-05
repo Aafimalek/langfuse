@@ -188,12 +188,25 @@ const describeWithClickhouse = clickhouseLocalAvailable()
   ? describe
   : describe.skip;
 
-/** ClickHouse's parse tree of each `SELECT <expression>`, in order. */
-function explainAst(expressions: string[]): string[] {
-  const out = executeClickhouseLocal(
-    expressions.map((e) => `EXPLAIN AST SELECT ${e}`).join(";\n"),
-  );
-  return out.split(/^(?=SelectWithUnionQuery)/m).map((tree) => tree.trimEnd());
+/**
+ * In one `clickhouse local` run: the names of the functions ClickHouse
+ * resolves case-insensitively, and the parse tree of each
+ * `SELECT <expression>`, in order.
+ */
+function explainAst(expressions: string[]): {
+  caseInsensitive: Set<string>;
+  trees: string[];
+} {
+  const [functionNames, ...trees] = executeClickhouseLocal(
+    [
+      "SELECT lower(name) FROM system.functions WHERE case_insensitive FORMAT TSV",
+      ...expressions.map((e) => `EXPLAIN AST SELECT ${e}`),
+    ].join(";\n"),
+  ).split(/^(?=SelectWithUnionQuery)/m);
+  return {
+    caseInsensitive: new Set(functionNames.trimEnd().split("\n")),
+    trees: trees.map((tree) => tree.trimEnd()),
+  };
 }
 
 /**
@@ -210,22 +223,26 @@ function normalizeFunctionCase(tree: string, caseInsensitive: Set<string>) {
 }
 
 describeWithClickhouse("v2 observations registry SQL", () => {
-  it("parses to the same tree as the view's SQL, entry by entry", () => {
-    const cases = registryCases();
-    const rendered = renderCases(cases);
-    const caseInsensitive = new Set(
-      executeClickhouseLocal(
-        "SELECT lower(name) FROM system.functions WHERE case_insensitive FORMAT TSV",
-      ).split("\n"),
-    );
-    const legacyTrees = explainAst(cases.map((c) => c.legacy));
-    const registryTrees = explainAst(cases.map((c) => rendered[c.key]));
-    expect(registryTrees).toHaveLength(cases.length);
-    cases.forEach((c, i) => {
-      expect(
-        normalizeFunctionCase(registryTrees[i], caseInsensitive),
-        `${c.key}\nlegacy:   ${c.legacy}\nregistry: ${rendered[c.key]}`,
-      ).toEqual(normalizeFunctionCase(legacyTrees[i], caseInsensitive));
-    });
-  });
+  // One `clickhouse local` run for all cases: each start takes seconds on the CI binary.
+  it(
+    "parses to the same tree as the view's SQL, entry by entry",
+    { timeout: 30_000 },
+    () => {
+      const cases = registryCases();
+      const rendered = renderCases(cases);
+      const { caseInsensitive, trees } = explainAst([
+        ...cases.map((c) => c.legacy),
+        ...cases.map((c) => rendered[c.key]),
+      ]);
+      expect(trees).toHaveLength(2 * cases.length);
+      const legacyTrees = trees.slice(0, cases.length);
+      const registryTrees = trees.slice(cases.length);
+      cases.forEach((c, i) => {
+        expect(
+          normalizeFunctionCase(registryTrees[i], caseInsensitive),
+          `${c.key}\nlegacy:   ${c.legacy}\nregistry: ${rendered[c.key]}`,
+        ).toEqual(normalizeFunctionCase(legacyTrees[i], caseInsensitive));
+      });
+    },
+  );
 });
