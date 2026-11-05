@@ -131,11 +131,19 @@ describe("v2 observations registry", () => {
     expect(Object.keys(view.tableRelations)).toEqual(["scores"]);
   });
 
-  it("declares the view's aggregation slots and pair-expanded aliases", () => {
+  it("declares the view's aggregation slots, measure dependencies and pair-expanded aliases", () => {
     for (const [name, entry] of Object.entries(EVENTS_OBSERVATIONS_MEASURES)) {
-      expect("aggs" in entry ? entry.aggs : undefined, name).toEqual(
-        view.measures[name].aggs,
-      );
+      const { aggs, requiresDimension, relationTable } = view.measures[name];
+      expect(
+        {
+          aggs: "aggs" in entry ? entry.aggs : undefined,
+          requiresDimension:
+            "requiresDimension" in entry ? entry.requiresDimension : undefined,
+          relationTable:
+            "relationTable" in entry ? entry.relationTable : undefined,
+        },
+        name,
+      ).toEqual({ aggs, requiresDimension, relationTable });
     }
     for (const [name, entry] of Object.entries(
       EVENTS_OBSERVATIONS_DIMENSIONS,

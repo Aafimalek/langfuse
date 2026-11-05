@@ -96,6 +96,8 @@ type MeasureEntry =
   | {
       /** Aggregates the slots apply in the inner select of a two-level query. */
       aggs: Record<string, TemplateAggregate>;
+      /** Reads a select alias the named dimension brings into scope. */
+      requiresDimension?: string;
       expression: (
         eb: ObservationsBuilder,
         level: QueryLevel,
@@ -119,13 +121,14 @@ type MeasureEntry =
  */
 function templateMeasure<A extends Record<string, TemplateAggregate>>(entry: {
   aggs: A;
+  requiresDimension?: string;
   expression: (
     eb: ObservationsBuilder,
     agg: AggregationSlot<A>,
   ) => AliasableExpression<unknown>;
 }): MeasureEntry {
   return {
-    aggs: entry.aggs,
+    ...entry,
     expression: (eb, level) =>
       entry.expression(eb, aggregationSlot(entry.aggs, level)),
   };
@@ -527,6 +530,7 @@ export const EVENTS_OBSERVATIONS_MEASURES = {
   }),
   toolCallInvocations: templateMeasure({
     aggs: { agg1: "any" },
+    requiresDimension: "calledToolNames",
     // Counts the select alias `calledToolNames`, the ARRAY JOINed tool name.
     expression: (eb, agg) =>
       countEqual(
