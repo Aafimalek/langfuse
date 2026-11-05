@@ -9,7 +9,10 @@ import {
   clickhouseLocalAvailable,
   executeClickhouseLocal,
 } from "../../../server/repositories/goldenHarness";
-import { literal } from "../../../server/query-ast/extensions";
+import {
+  literal,
+  type TemplateAggregate,
+} from "../../../server/query-ast/extensions";
 import type { ClickHouseDatabase } from "../../../server/query-ast/schema";
 import { eventsObservationsView } from "../dataModel";
 import {
@@ -90,8 +93,7 @@ function registryCases(): Case[] {
         cases.push({
           key: `measure_${name}_${level}`,
           legacy: legacyMeasureSql(legacy.sql, legacy.aggs ?? {}, level),
-          build: (eb) =>
-            entry.expression(eb, aggregationSlot(entry.aggs, level)),
+          build: (eb) => entry.expression(eb, level),
         });
       }
     } else {
@@ -166,7 +168,10 @@ describe("v2 observations registry", () => {
 
   it("rejects a slot the measure does not declare", () => {
     expect(() =>
-      aggregationSlot({ agg1: "any" }, "two")("agg2", literal(1)),
+      aggregationSlot<Record<string, TemplateAggregate>>(
+        { agg1: "any" },
+        "two",
+      )("agg2", literal(1)),
     ).toThrow('Measure has no aggregation slot "agg2".');
   });
 });

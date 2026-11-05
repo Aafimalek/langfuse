@@ -35,6 +35,7 @@ import {
   metadataMap,
   metadataValue,
   startsWith,
+  templateAggregate,
   tupleArrayField,
   uniq,
   uniqIf,
@@ -498,6 +499,18 @@ describe("64-bit results", () => {
     expectTypeOf(
       medianExact(eb.ref("e.total_cost")).expressionType,
     ).toEqualTypeOf<number | undefined>();
+  });
+
+  it("types a template count or sum as number and any as its value", () => {
+    expectTypeOf(
+      templateAggregate("count", eb.ref("e.name")).expressionType,
+    ).toEqualTypeOf<number | undefined>();
+    expectTypeOf(
+      templateAggregate("sum", eb.ref("e.total_cost")).expressionType,
+    ).toEqualTypeOf<number | undefined>();
+    expectTypeOf(
+      templateAggregate("any", eb.ref("e.name")).expressionType,
+    ).toEqualTypeOf<string | undefined>();
   });
 });
 

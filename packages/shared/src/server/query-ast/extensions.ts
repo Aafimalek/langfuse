@@ -511,15 +511,18 @@ export function sumMap<V>(
 /** Aggregates a dashboard measure template may apply to a row value. */
 export type TemplateAggregate = "any" | "count" | "sum" | "sumMap";
 
-/**
- * `fn(value)` for a {@link TemplateAggregate}. Typed as `value`: `any` and
- * `sumMap` keep its type, `sum` and `count` give a number, which matches a
- * numeric `value` only.
- */
-export function templateAggregate<T>(
-  fn: TemplateAggregate,
+/** Result type of `fn(value)`: `count` and `sum` give a number, `any` and `sumMap` keep `T`. */
+export type TemplateAggregateResult<F extends TemplateAggregate, T> = F extends
+  | "count"
+  | "sum"
+  ? number
+  : T;
+
+/** `fn(value)` for a {@link TemplateAggregate}. */
+export function templateAggregate<F extends TemplateAggregate, T>(
+  fn: F,
   value: Expression<T>,
-): ChExpression<T> {
+): ChExpression<TemplateAggregateResult<F, T>> {
   return aggregate(fn, [value]);
 }
 

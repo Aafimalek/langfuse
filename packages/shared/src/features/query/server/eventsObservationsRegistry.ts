@@ -41,6 +41,7 @@ import {
   typedNull,
   uniq,
   type TemplateAggregate,
+  type TemplateAggregateResult,
 } from "../../../server/query-ast/extensions";
 import type { ClickHouseDatabase } from "../../../server/query-ast/schema";
 import {
@@ -65,15 +66,22 @@ type ObservationsWithScoresBuilder = ExpressionBuilder<
   "events_observations" | "scores"
 >;
 
+/** Level of a dashboard query: `two` has an inner aggregating select. */
+type QueryLevel = "single" | "two";
+
 /**
  * A measure's aggregation slot: the legacy `@@AGGn@@` marker. It wraps a row
  * value; which aggregate it applies, if any, depends on the query level
- * ({@link aggregationSlot}).
+ * ({@link aggregationSlot}), so the result is the row value's type or the
+ * aggregate's.
  */
-type AggregationSlot<S extends string> = <T>(
-  slot: S,
+type AggregationSlot<A extends Record<string, TemplateAggregate>> = <
+  K extends keyof A & string,
+  T,
+>(
+  slot: K,
   value: Expression<T>,
-) => AliasableExpression<T>;
+) => AliasableExpression<T | TemplateAggregateResult<A[K], T>>;
 
 type DimensionEntry = {
   expression: (eb: ObservationsBuilder) => AliasableExpression<unknown>;
@@ -90,7 +98,7 @@ type MeasureEntry =
       aggs: Record<string, TemplateAggregate>;
       expression: (
         eb: ObservationsBuilder,
-        agg: AggregationSlot<string>,
+        level: QueryLevel,
       ) => AliasableExpression<unknown>;
     }
   | {
@@ -105,15 +113,22 @@ type MeasureEntry =
       expression: (eb: ObservationsBuilder) => AliasableExpression<unknown>;
     };
 
-/** A measure with aggregation slots; `S` checks each slot against `aggs`. */
-function templateMeasure<S extends string>(entry: {
-  aggs: Record<S, TemplateAggregate>;
+/**
+ * A measure with aggregation slots; `A` checks each slot against `aggs` and
+ * types its result.
+ */
+function templateMeasure<A extends Record<string, TemplateAggregate>>(entry: {
+  aggs: A;
   expression: (
     eb: ObservationsBuilder,
-    agg: AggregationSlot<S>,
+    agg: AggregationSlot<A>,
   ) => AliasableExpression<unknown>;
 }): MeasureEntry {
-  return entry;
+  return {
+    aggs: entry.aggs,
+    expression: (eb, level) =>
+      entry.expression(eb, aggregationSlot(entry.aggs, level)),
+  };
 }
 
 /**
@@ -122,10 +137,10 @@ function templateMeasure<S extends string>(entry: {
  * the slot's aggregate from `aggs`. Mirrors the `@@AGGn@@` stripping and
  * substitution in `queryBuilder.ts`.
  */
-export function aggregationSlot(
-  aggs: Record<string, TemplateAggregate>,
-  level: "single" | "two",
-): AggregationSlot<string> {
+export function aggregationSlot<A extends Record<string, TemplateAggregate>>(
+  aggs: A,
+  level: QueryLevel,
+): AggregationSlot<A> {
   if (level === "single")
     return (_slot, value) => new ExpressionWrapper(value.toOperationNode());
   return (slot, value) => {
@@ -169,10 +184,10 @@ const viaAiGateway = (eb: ObservationsBuilder) =>
  * `start` to `end` in `unit`, both read through `agg`:
  * `date_diff(unit, agg(start), agg(end))`.
  */
-const aggregatedDiff = <S extends string>(
+const aggregatedDiff = <A extends Record<string, TemplateAggregate>>(
   eb: ObservationsBuilder,
-  agg: AggregationSlot<S>,
-  slot: S,
+  agg: AggregationSlot<A>,
+  slot: keyof A & string,
   unit: "millisecond" | "second",
   start: "start_time" | "completion_start_time",
   end: "end_time" | "completion_start_time",
@@ -189,7 +204,7 @@ const aggregatedDiff = <S extends string>(
  */
 const sinceCompletionStart = (
   eb: ObservationsBuilder,
-  agg: AggregationSlot<"agg1">,
+  agg: AggregationSlot<{ agg1: "any" }>,
   start: "start_time" | "completion_start_time",
   end: "end_time" | "completion_start_time",
 ) =>
