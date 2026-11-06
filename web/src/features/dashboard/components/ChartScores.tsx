@@ -1,33 +1,25 @@
 /* eslint-disable @repo/no-style-props */
 import { useMemo } from "react";
-import { DashboardCard } from "@/src/features/dashboard/components/cards/DashboardCard";
+import { type DashboardCardActions } from "@/src/components/design-system/cards/CustomDashboardCard/CustomDashboardCard";
 import { type ScoreDataTypeType, type FilterState } from "@langfuse/shared";
 import {
   extractTimeSeriesData,
   fillMissingValuesAndTransform,
-  isEmptyTimeSeries,
 } from "@/src/features/dashboard/components/hooks";
 import {
   type DashboardDateRangeAggregationOption,
   dashboardDateRangeAggregationSettings,
 } from "@/src/utils/date-range-utils";
 import { getScoreDataTypeIcon } from "@/src/features/scores/lib/scoreColumns";
-import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
 import { type QueryType, type ViewVersion } from "@langfuse/shared/query";
 import { mapLegacyUiTableFilterToView } from "@/src/features/dashboard/lib/dashboardUiTableToViewMapping";
 import { type DatabaseRow } from "@/src/server/api/services/sqlInterface";
-import { Chart } from "@/src/features/widgets/chart-library/Chart";
+import { WidgetChartCard } from "@/src/features/widgets/components/WidgetChartCard";
 import { timeSeriesToDataPoints } from "@/src/features/dashboard/lib/chart-data-adapters";
 import { useScheduledDashboardExecuteQuery } from "@/src/features/dashboard/hooks/DashboardQuerySchedulerProvider";
 
-// Static — hoisted so its reference is stable across re-renders (keeps the
-// memoized <Chart> from reconciling on dashboard scheduler re-renders).
-const SCORES_CHART_CONFIG = {
-  type: "LINE_TIME_SERIES",
-  show_data_point_dots: false,
-} as const;
-
 export function ChartScores(props: {
+  actions?: DashboardCardActions;
   className?: string;
   agg: DashboardDateRangeAggregationOption;
   globalFilterState: FilterState;
@@ -115,35 +107,24 @@ export function ChartScores(props: {
   );
 
   return (
-    <DashboardCard
-      className={props.className}
-      title="Scores"
-      description="Moving average per score"
-      isLoading={props.isLoading || scores.isPending}
-    >
-      {!isEmptyTimeSeries({ data: extractedScores }) ? (
-        // The height is the flex basis (floor); grow lets the chart absorb
-        // extra tile height. On grid (lg) screens the floor is smaller so
-        // tiles fit narrow viewports — grow recovers the height above the
-        // grid's rowHeight floor. (LFE-10813)
-        <div className="h-80 w-full shrink-0 grow lg:h-56">
-          <Chart
-            chartType="LINE_TIME_SERIES"
-            data={chartData}
-            rowLimit={100}
-            chartConfig={SCORES_CHART_CONFIG}
-            syncId={props.syncId}
-            sync={props.sync}
-          />
-        </div>
-      ) : (
-        <NoDataOrLoading
-          isLoading={props.isLoading || scores.isPending}
-          description="Scores evaluate LLM quality and can be created manually or using the SDK."
-          href="https://langfuse.com/docs/evaluation/overview"
-          className="h-auto grow"
-        />
-      )}
-    </DashboardCard>
+    <div className={props.className}>
+      <WidgetChartCard
+        chartType="LINE_TIME_SERIES"
+        actions={props.actions}
+        title="Scores"
+        description="Moving average per score"
+        state={{
+          status: props.isLoading || scores.isPending ? "loading" : "ready",
+        }}
+        emptyState={{
+          description:
+            "Scores evaluate LLM quality and can be created manually or using the SDK.",
+          documentationUrl: "https://langfuse.com/docs/evaluation/overview",
+        }}
+        data={chartData}
+        syncId={props.syncId}
+        sync={props.sync}
+      />
+    </div>
   );
 }

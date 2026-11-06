@@ -1,4 +1,9 @@
-import React, { useState, useMemo, type ReactNode } from "react";
+import React, {
+  useState,
+  useMemo,
+  type ReactNode,
+  type ComponentProps,
+} from "react";
 import {
   type FormatMetricOptions,
   type MetricFormatterFunction,
@@ -13,7 +18,7 @@ import {
 import { formatMetric } from "@/src/features/widgets/chart-library/utils";
 import { isChartDataEmpty } from "@/src/features/widgets/chart-library/isChartDataEmpty";
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
-import { CardContent } from "@/src/components/ui/card";
+import { CardContent } from "@/src/components/design-system/Card/Card";
 import { LineChartTimeSeries } from "@/src/features/widgets/chart-library/LineChartTimeSeries";
 import { AreaChartTimeSeries } from "@/src/features/widgets/chart-library/AreaChartTimeSeries";
 import { VerticalBarChartTimeSeries } from "@/src/features/widgets/chart-library/VerticalBarChartTimeSeries";
@@ -24,9 +29,11 @@ import HistogramChart from "@/src/features/widgets/chart-library/HistogramChart"
 import { type DashboardWidgetChartType } from "@langfuse/shared/src/db";
 import { Button } from "@/src/components/ui/button";
 import { AlertCircle } from "@langfuse/icons";
-import { BigNumber } from "@/src/features/widgets/chart-library/BigNumber";
+import { BigNumber } from "@/src/components/design-system/BigNumber/BigNumber";
 import { PivotTable } from "@/src/features/widgets/chart-library/PivotTable";
 import { type OrderByState } from "@langfuse/shared";
+import { DataCard } from "@/src/components/design-system/cards/DataCard/DataCard";
+import { CustomDashboardCard } from "@/src/components/design-system/cards/CustomDashboardCard/CustomDashboardCard";
 
 const DEFAULT_METRIC_THEME = {
   light: "hsl(var(--chart-1))",
@@ -70,7 +77,9 @@ const ChartComponent = ({
   colorBarsByCategory,
   zeroBaseline,
   emptyState,
+  card,
 }: {
+  card?: Omit<ComponentProps<typeof DataCard>, "visualization">;
   chartType: DashboardWidgetChartType;
   data: DataPoint[];
   rowLimit: number;
@@ -183,6 +192,7 @@ const ChartComponent = ({
       case "LINE_TIME_SERIES":
         return (
           <LineChartTimeSeries
+            card={card}
             data={renderedData}
             config={resolvedConfig}
             metricFormatter={metricFormatter}
@@ -202,6 +212,7 @@ const ChartComponent = ({
       case "AREA_TIME_SERIES":
         return (
           <AreaChartTimeSeries
+            card={card}
             data={renderedData}
             config={resolvedConfig}
             metricFormatter={metricFormatter}
@@ -218,6 +229,7 @@ const ChartComponent = ({
       case "BAR_TIME_SERIES":
         return (
           <VerticalBarChartTimeSeries
+            card={card}
             data={renderedData}
             config={resolvedConfig}
             metricFormatter={metricFormatter}
@@ -233,6 +245,7 @@ const ChartComponent = ({
       case "HORIZONTAL_BAR":
         return (
           <TopListChart
+            card={card}
             data={renderedData.slice(0, rowLimit)}
             config={resolvedConfig}
             metricFormatter={metricFormatter}
@@ -241,6 +254,7 @@ const ChartComponent = ({
       case "VERTICAL_BAR":
         return (
           <VerticalBarChart
+            card={card}
             data={renderedData.slice(0, rowLimit)}
             config={resolvedConfig}
             metricFormatter={metricFormatter}
@@ -253,6 +267,7 @@ const ChartComponent = ({
       case "PIE":
         return (
           <PieChart
+            card={card}
             data={renderedData.slice(0, rowLimit)}
             metricFormatter={metricFormatter}
           />
@@ -260,19 +275,31 @@ const ChartComponent = ({
       case "HISTOGRAM":
         return (
           <HistogramChart
+            card={card}
             data={renderedData}
             config={resolvedConfig}
             metricFormatter={metricFormatter}
           />
         );
       case "NUMBER": {
-        return (
-          <BigNumber
-            data={renderedData}
-            config={resolvedConfig}
-            metricFormatter={metricFormatter}
-          />
+        const value = renderedData.reduce(
+          (sum, point) =>
+            sum + (typeof point.metric === "number" ? point.metric : 0),
+          0,
         );
+        if (card) {
+          return (
+            <DataCard
+              {...card}
+              visualization={{
+                type: "number",
+                value,
+                valueFormatter: metricFormatter,
+              }}
+            />
+          );
+        }
+        return <BigNumber value={value} valueFormatter={metricFormatter} />;
       }
       case "PIVOT_TABLE": {
         // Extract pivot table configuration from chartConfig
@@ -285,6 +312,7 @@ const ChartComponent = ({
         };
         return (
           <PivotTable
+            card={card}
             data={renderedData}
             config={pivotConfig}
             sortState={sortState}
@@ -322,6 +350,16 @@ const ChartComponent = ({
       </Button>
     </div>
   );
+
+  if (card) {
+    if (card.state && card.state.status !== "ready")
+      return <CustomDashboardCard {...card} />;
+    if (shouldWarn)
+      return (
+        <CustomDashboardCard {...card}>{renderWarning()}</CustomDashboardCard>
+      );
+    return renderChart();
+  }
 
   return (
     <CardContent className="h-full p-0">

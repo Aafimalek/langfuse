@@ -1,4 +1,5 @@
 import { type ReactNode } from "react";
+import { type DashboardCardActions } from "@/src/components/design-system/cards/CustomDashboardCard/CustomDashboardCard";
 import { type FilterState, type HomeDashboardPresetId } from "@langfuse/shared";
 import { type ViewVersion } from "@langfuse/shared/query";
 import { type DashboardDateRangeAggregationOption } from "@/src/utils/date-range-utils";
@@ -20,6 +21,7 @@ import { ScoreAnalytics } from "@/src/features/dashboard/components/score-analyt
  * bespoke Home page used to pass them.
  */
 export interface PresetWidgetContext {
+  actions?: DashboardCardActions;
   projectId: string;
   /** Page-level filters WITHOUT the time window (time arrives as timestamps). */
   globalFilterState: FilterState;
@@ -52,6 +54,7 @@ const HOME_PRESETS: Record<
 > = {
   "home-traces": (ctx) => (
     <TracesBarListChart
+      actions={ctx.actions}
       className={ctx.className}
       projectId={ctx.projectId}
       globalFilterState={ctx.globalFilterState}
@@ -64,6 +67,7 @@ const HOME_PRESETS: Record<
   ),
   "home-model-costs": (ctx) => (
     <ModelCostTable
+      actions={ctx.actions}
       className={ctx.className}
       projectId={ctx.projectId}
       globalFilterState={ctx.globalFilterState}
@@ -76,6 +80,7 @@ const HOME_PRESETS: Record<
   ),
   "home-scores-table": (ctx) => (
     <ScoresTable
+      actions={ctx.actions}
       className={ctx.className}
       projectId={ctx.projectId}
       globalFilterState={ctx.mergedFilterState}
@@ -85,6 +90,7 @@ const HOME_PRESETS: Record<
   ),
   "home-traces-obs-time-series": (ctx) => (
     <TracesAndObservationsTimeSeriesChart
+      actions={ctx.actions}
       className={ctx.className}
       projectId={ctx.projectId}
       globalFilterState={ctx.globalFilterState}
@@ -100,6 +106,7 @@ const HOME_PRESETS: Record<
   ),
   "home-model-usage": (ctx) => (
     <ModelUsageChart
+      actions={ctx.actions}
       className={ctx.className}
       projectId={ctx.projectId}
       globalFilterState={ctx.mergedFilterState}
@@ -116,6 +123,7 @@ const HOME_PRESETS: Record<
   ),
   "home-users": (ctx) => (
     <UserChart
+      actions={ctx.actions}
       className={ctx.className}
       projectId={ctx.projectId}
       globalFilterState={ctx.globalFilterState}
@@ -128,6 +136,7 @@ const HOME_PRESETS: Record<
   ),
   "home-chart-scores": (ctx) => (
     <ChartScores
+      actions={ctx.actions}
       className={ctx.className}
       agg={ctx.agg}
       projectId={ctx.projectId}
@@ -144,6 +153,7 @@ const HOME_PRESETS: Record<
   "home-latency-table-traces": (ctx) => (
     <LatencyTable
       kind="traces"
+      actions={ctx.actions}
       className={ctx.className}
       projectId={ctx.projectId}
       globalFilterState={ctx.globalFilterState}
@@ -157,6 +167,7 @@ const HOME_PRESETS: Record<
   "home-latency-table-generations": (ctx) => (
     <LatencyTable
       kind="generations"
+      actions={ctx.actions}
       className={ctx.className}
       projectId={ctx.projectId}
       globalFilterState={ctx.globalFilterState}
@@ -170,6 +181,7 @@ const HOME_PRESETS: Record<
   "home-latency-table-observations": (ctx) => (
     <LatencyTable
       kind="observations"
+      actions={ctx.actions}
       className={ctx.className}
       projectId={ctx.projectId}
       globalFilterState={ctx.globalFilterState}
@@ -182,6 +194,7 @@ const HOME_PRESETS: Record<
   ),
   "home-generation-latency": (ctx) => (
     <GenerationLatencyChart
+      actions={ctx.actions}
       className={ctx.className}
       projectId={ctx.projectId}
       agg={ctx.agg}
@@ -197,6 +210,7 @@ const HOME_PRESETS: Record<
   ),
   "home-score-analytics": (ctx) => (
     <ScoreAnalytics
+      actions={ctx.actions}
       className={ctx.className}
       agg={ctx.agg}
       projectId={ctx.projectId}

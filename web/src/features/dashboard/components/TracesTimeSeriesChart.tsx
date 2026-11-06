@@ -1,22 +1,21 @@
 /* eslint-disable @repo/no-style-props, @repo/component-file-structure */
 import { type FilterState } from "@langfuse/shared";
-import { DashboardCard } from "@/src/features/dashboard/components/cards/DashboardCard";
-import { TotalMetric } from "@/src/features/dashboard/components/TotalMetric";
+import { type DashboardCardActions } from "@/src/components/design-system/cards/CustomDashboardCard/CustomDashboardCard";
 import { compactNumberFormatter } from "@/src/utils/numbers";
-import { isEmptyTimeSeries } from "@/src/features/dashboard/components/hooks";
 import {
   type DashboardDateRangeAggregationOption,
   dashboardDateRangeAggregationSettings,
 } from "@/src/utils/date-range-utils";
-import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
-import { TabComponent } from "@/src/features/dashboard/components/TabComponent";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { type QueryType, type ViewVersion } from "@langfuse/shared/query";
 import { mapLegacyUiTableFilterToView } from "@/src/features/dashboard/lib/dashboardUiTableToViewMapping";
-import { DashboardLineTimeSeriesChart } from "@/src/features/dashboard/components/DashboardLineTimeSeriesChart";
+import { WidgetChartCard } from "@/src/features/widgets/components/WidgetChartCard";
+import { timeSeriesToDataPoints } from "@/src/features/dashboard/lib/chart-data-adapters";
 import { useScheduledDashboardExecuteQuery } from "@/src/features/dashboard/hooks/DashboardQuerySchedulerProvider";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 
 export const TracesAndObservationsTimeSeriesChart = ({
+  actions,
   className,
   projectId,
   globalFilterState,
@@ -29,6 +28,7 @@ export const TracesAndObservationsTimeSeriesChart = ({
   syncId,
   sync,
 }: {
+  actions?: DashboardCardActions;
   className?: string;
   projectId: string;
   globalFilterState: FilterState;
@@ -189,64 +189,62 @@ export const TracesAndObservationsTimeSeriesChart = ({
         },
       ];
 
+  const [selectedIndex, setSelectedIndex] = useState(0);
+  const capture = usePostHogClientCapture();
+  const tabs = {
+    value: String(selectedIndex < data.length ? selectedIndex : 0),
+    options: data.map((item, index) => ({
+      value: String(index),
+      label: item.tabTitle,
+    })),
+    onValueChange: (value: string) => {
+      const index = Number(value);
+      setSelectedIndex(index);
+      capture("dashboard:chart_tab_switch", {
+        tabLabel: data[index]?.tabTitle,
+      });
+    },
+  };
+  const item = data[selectedIndex] ?? data[0]!;
+  const chartData = useMemo(
+    () => timeSeriesToDataPoints(item.data),
+    [item.data],
+  );
+
   return (
-    <DashboardCard
-      className={className}
-      title={isV2 ? "Observations by time" : "Traces by time"}
-      isLoading={
-        isLoading || observations.isPending || (!isV2 && traces.isPending)
-      }
-      cardContentClassName="flex flex-col content-end "
-    >
-      <TabComponent
-        tabs={data.map((item) => {
-          return {
-            tabTitle: item.tabTitle,
-            content: (
-              <>
-                <TotalMetric
-                  description={item.metricDescription}
-                  metric={
-                    item.totalMetric
-                      ? compactNumberFormatter(item.totalMetric)
-                      : compactNumberFormatter(0)
-                  }
-                />
-                {!isEmptyTimeSeries({ data: item.data }) ? (
-                  // The height is the flex basis (floor); grow lets the chart absorb
-                  // extra tile height. On grid (lg) screens the floor is smaller so
-                  // tiles fit narrow viewports — grow recovers the height above the
-                  // grid's rowHeight floor. (LFE-10813)
-                  <div className="h-80 w-full shrink-0 grow lg:h-56">
-                    <DashboardLineTimeSeriesChart
-                      data={item.data}
-                      label={item.chartMetricLabel}
-                      // Counts are additive: the legend total reconciles with
-                      // the card headline. (LFE-10498)
-                      legendSummary="sum"
-                      syncId={syncId}
-                      sync={sync}
-                      // Additive counts: a bucket without data honestly counts 0. (LFE-10694)
-                      missingValue="zero"
-                    />
-                  </div>
-                ) : (
-                  <NoDataOrLoading
-                    isLoading={
-                      isLoading ||
-                      observations.isPending ||
-                      (!isV2 && traces.isPending)
-                    }
-                    description="Traces contain details about LLM applications and can be created using the SDK."
-                    href="https://langfuse.com/docs/observability/overview"
-                    className="h-auto grow"
-                  />
-                )}
-              </>
-            ),
-          };
-        })}
+    <div className={className}>
+      <WidgetChartCard
+        chartType="LINE_TIME_SERIES"
+        actions={actions}
+        title={isV2 ? "Observations by time" : "Traces by time"}
+        tabs={tabs}
+        state={{
+          status:
+            isLoading || observations.isPending || (!isV2 && traces.isPending)
+              ? "loading"
+              : "ready",
+        }}
+        emptyState={{
+          description:
+            "Traces contain details about LLM applications and can be created using the SDK.",
+          documentationUrl: "https://langfuse.com/docs/observability/overview",
+        }}
+        metric={{
+          description: item.metricDescription,
+          value: item.totalMetric
+            ? compactNumberFormatter(item.totalMetric)
+            : compactNumberFormatter(0),
+        }}
+        data={chartData}
+        label={item.chartMetricLabel}
+        // Counts are additive: the legend total reconciles with
+        // the card headline. (LFE-10498)
+        legendSummary="sum"
+        syncId={syncId}
+        sync={sync}
+        // Additive counts: a bucket without data honestly counts 0. (LFE-10694)
+        missingValue="zero"
       />
-    </DashboardCard>
+    </div>
   );
 };

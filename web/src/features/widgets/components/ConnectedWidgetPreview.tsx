@@ -5,7 +5,7 @@ import {
   CardDescription,
   CardHeader,
   CardTitle,
-} from "@/src/components/ui/card";
+} from "@/src/components/design-system/Card/Card";
 import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { AlertCircle } from "@langfuse/icons";
 import { api } from "@/src/utils/api";
@@ -13,7 +13,7 @@ import { getResultUnit } from "@langfuse/shared/query";
 import { Chart } from "@/src/features/widgets/chart-library/Chart";
 import { type DataPoint } from "@/src/features/widgets/chart-library/chart-props";
 import { isTimeSeriesChart } from "@/src/features/widgets/chart-library/utils";
-import { ChartLoadingState } from "@/src/features/widgets/chart-library/ChartLoadingState";
+import { ChartLoadingState } from "@/src/components/design-system/ChartLoadingState/ChartLoadingState";
 import {
   getChartLoadingProgress,
   getChartLoadingStateProps,

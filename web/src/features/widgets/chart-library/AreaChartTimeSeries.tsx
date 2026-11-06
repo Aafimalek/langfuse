@@ -1,4 +1,5 @@
-import { useMemo } from "react";
+import { type ComponentProps, useMemo } from "react";
+import { DataCard } from "@/src/components/design-system/cards/DataCard/DataCard";
 
 import { AreaChart as DesignSystemAreaChart } from "@/src/components/design-system/charts/AreaChart/AreaChart";
 import { type LineChartLegend } from "@/src/components/design-system/charts/LineChart/LineChart";
@@ -41,7 +42,10 @@ export function AreaChartTimeSeries({
   missingValue = "gap",
   connectNulls = false,
   hideXAxisLabels = false,
-}: ChartProps) {
+  card,
+}: ChartProps & {
+  card?: Omit<ComponentProps<typeof DataCard>, "visualization">;
+}) {
   const allDimensions = useMemo(() => getUniqueDimensions(data), [data]);
   const groupedData = useMemo(
     () =>
@@ -116,46 +120,55 @@ export function AreaChartTimeSeries({
       summary: legendSummary,
     };
   }, [legendPosition, legendInteraction, legendSummary, maxVisibleSeries]);
-  const chart =
-    timeAxis.mode === "category" || hasNonTimestampBucket ? (
-      <DesignSystemAreaChart
-        data={chartData}
-        series={chartSeries}
-        valueFormatter={formatValue}
-        connectNulls={connectNulls}
-        sync={sync}
-        legend={chartLegend}
-        xAxis={{
-          type: "category",
-          labels: hideXAxisLabels ? "hidden" : "visible",
-          tickFormatter: (value) => {
-            const date = parseChartTimestamp(value);
-            return date
-              ? dateAxis.formatTick(date.getTime())
-              : timeAxis.formatTick(value);
+  const axisProps: ComponentProps<typeof DesignSystemAreaChart> =
+    timeAxis.mode === "category" || hasNonTimestampBucket
+      ? {
+          data: chartData,
+          series: chartSeries,
+          xAxis: {
+            type: "category",
+            labels: hideXAxisLabels ? "hidden" : "visible",
+            tickFormatter: (value) => {
+              const date = parseChartTimestamp(value);
+              return date
+                ? dateAxis.formatTick(date.getTime())
+                : timeAxis.formatTick(value);
+            },
+            tooltipFormatter: (value) => {
+              const date = parseChartTimestamp(value);
+              return date
+                ? dateAxis.formatTooltip(date.getTime())
+                : timeAxis.formatTooltip(value);
+            },
           },
-          tooltipFormatter: (value) => {
-            const date = parseChartTimestamp(value);
-            return date
-              ? dateAxis.formatTooltip(date.getTime())
-              : timeAxis.formatTooltip(value);
+        }
+      : {
+          data: chartData.flatMap((datum) => {
+            const date = parseChartTimestamp(datum.x);
+            return date ? [{ ...datum, x: date }] : [];
+          }),
+          series: chartSeries,
+          xAxis: {
+            type: "time",
           },
+        };
+
+  const chartProps = {
+    ...axisProps,
+    valueFormatter: formatValue,
+    connectNulls,
+    sync,
+    legend: chartLegend,
+  };
+  if (card)
+    return (
+      <DataCard
+        {...card}
+        seriesOverflow={{
+          visibleCount: dimensions.length,
+          totalCount: visibleSeries.total,
         }}
-      />
-    ) : (
-      <DesignSystemAreaChart
-        data={chartData.flatMap((datum) => {
-          const date = parseChartTimestamp(datum.x);
-          return date ? [{ ...datum, x: date }] : [];
-        })}
-        series={chartSeries}
-        valueFormatter={formatValue}
-        connectNulls={connectNulls}
-        sync={sync}
-        legend={chartLegend}
-        xAxis={{
-          type: "time",
-        }}
+        visualization={{ type: "area", ...chartProps }}
       />
     );
 
@@ -167,7 +180,9 @@ export function AreaChartTimeSeries({
           totalCount={visibleSeries.total}
         />
       ) : null}
-      <div className="min-h-0 flex-1">{chart}</div>
+      <div className="min-h-0 flex-1">
+        <DesignSystemAreaChart {...chartProps} />
+      </div>
     </div>
   );
 }

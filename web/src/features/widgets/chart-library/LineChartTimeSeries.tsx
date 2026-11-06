@@ -1,4 +1,5 @@
-import { useMemo } from "react";
+import { type ComponentProps, useMemo } from "react";
+import { DataCard } from "@/src/components/design-system/cards/DataCard/DataCard";
 
 import {
   LineChart as DesignSystemLineChart,
@@ -84,7 +85,10 @@ export function LineChartTimeSeries({
   connectNulls = false,
   hideXAxisLabels = false,
   compactYAxis = false,
-}: ChartProps) {
+  card,
+}: ChartProps & {
+  card?: Omit<ComponentProps<typeof DataCard>, "visualization">;
+}) {
   const allDimensions = useMemo(() => getUniqueDimensions(data), [data]);
   const groupedData = useMemo(
     () =>
@@ -177,49 +181,55 @@ export function LineChartTimeSeries({
       summary: legendSummary,
     };
   }, [legendPosition, legendInteraction, legendSummary, maxVisibleSeries]);
-  const chart =
-    timeAxis.mode === "category" || hasNonTimestampBucket ? (
-      <DesignSystemLineChart
-        data={chartData}
-        series={chartSeries}
-        valueFormatter={formatValue}
-        showDataPointDots={showDataPointDots}
-        connectNulls={connectNulls}
-        thresholds={chartThresholds}
-        sync={sync}
-        legend={chartLegend}
-        compactYAxis={compactYAxis}
-        xAxis={{
-          type: "category",
-          labels: hideXAxisLabels ? "hidden" : "visible",
-          tickFormatter: (value) => {
-            const date = parseChartTimestamp(value);
-            return date
-              ? dateAxis.formatTick(date.getTime())
-              : timeAxis.formatTick(value);
+  const axisProps: ComponentProps<typeof DesignSystemLineChart> =
+    timeAxis.mode === "category" || hasNonTimestampBucket
+      ? {
+          data: chartData,
+          series: chartSeries,
+          xAxis: {
+            type: "category",
+            labels: hideXAxisLabels ? "hidden" : "visible",
+            tickFormatter: (value) => {
+              const date = parseChartTimestamp(value);
+              return date
+                ? dateAxis.formatTick(date.getTime())
+                : timeAxis.formatTick(value);
+            },
+            tooltipFormatter: (value) => {
+              const date = parseChartTimestamp(value);
+              return date
+                ? dateAxis.formatTooltip(date.getTime())
+                : timeAxis.formatTooltip(value);
+            },
           },
-          tooltipFormatter: (value) => {
-            const date = parseChartTimestamp(value);
-            return date
-              ? dateAxis.formatTooltip(date.getTime())
-              : timeAxis.formatTooltip(value);
+        }
+      : {
+          data: timeChartData,
+          series: chartSeries,
+          xAxis: {
+            type: "time",
           },
+        };
+
+  const chartProps = {
+    ...axisProps,
+    valueFormatter: formatValue,
+    showDataPointDots,
+    connectNulls,
+    thresholds: chartThresholds,
+    sync,
+    legend: chartLegend,
+    compactYAxis,
+  };
+  if (card)
+    return (
+      <DataCard
+        {...card}
+        seriesOverflow={{
+          visibleCount: dimensions.length,
+          totalCount: visibleSeries.total,
         }}
-      />
-    ) : (
-      <DesignSystemLineChart
-        data={timeChartData}
-        series={chartSeries}
-        valueFormatter={formatValue}
-        showDataPointDots={showDataPointDots}
-        connectNulls={connectNulls}
-        thresholds={chartThresholds}
-        sync={sync}
-        legend={chartLegend}
-        compactYAxis={compactYAxis}
-        xAxis={{
-          type: "time",
-        }}
+        visualization={{ type: "line", ...chartProps }}
       />
     );
 
@@ -231,7 +241,9 @@ export function LineChartTimeSeries({
           totalCount={visibleSeries.total}
         />
       ) : null}
-      <div className="min-h-0 flex-1">{chart}</div>
+      <div className="min-h-0 flex-1">
+        <DesignSystemLineChart {...chartProps} />
+      </div>
     </div>
   );
 }

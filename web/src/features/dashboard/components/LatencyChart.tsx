@@ -3,27 +3,24 @@ import { type FilterState, getGenerationLikeTypes } from "@langfuse/shared";
 import {
   extractTimeSeriesData,
   fillMissingValuesAndTransform,
-  isEmptyTimeSeries,
 } from "@/src/features/dashboard/components/hooks";
-import { DashboardCard } from "@/src/features/dashboard/components/cards/DashboardCard";
-import { TabComponent } from "@/src/features/dashboard/components/TabComponent";
+import { type DashboardCardActions } from "@/src/components/design-system/cards/CustomDashboardCard/CustomDashboardCard";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import {
   type DashboardDateRangeAggregationOption,
   dashboardDateRangeAggregationSettings,
 } from "@/src/utils/date-range-utils";
-import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
-import {
-  ModelSelectorPopover,
-  useModelSelection,
-} from "@/src/features/dashboard/components/ModelSelectorPopover";
+import { useModelSelection } from "@/src/features/dashboard/components/ModelSelectorPopover";
 import { type QueryType, type ViewVersion } from "@langfuse/shared/query";
 import { mapLegacyUiTableFilterToView } from "@/src/features/dashboard/lib/dashboardUiTableToViewMapping";
 import type { DatabaseRow } from "@/src/server/api/services/sqlInterface";
-import { DashboardLineTimeSeriesChart } from "@/src/features/dashboard/components/DashboardLineTimeSeriesChart";
+import { WidgetChartCard } from "@/src/features/widgets/components/WidgetChartCard";
+import { timeSeriesToDataPoints } from "@/src/features/dashboard/lib/chart-data-adapters";
 import { useScheduledDashboardExecuteQuery } from "@/src/features/dashboard/hooks/DashboardQuerySchedulerProvider";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 
 export const GenerationLatencyChart = ({
+  actions,
   className,
   projectId,
   globalFilterState,
@@ -36,6 +33,7 @@ export const GenerationLatencyChart = ({
   syncId,
   sync,
 }: {
+  actions?: DashboardCardActions;
   className?: string;
   projectId: string;
   globalFilterState: FilterState;
@@ -148,52 +146,66 @@ export const GenerationLatencyChart = ({
     ];
   }, [latencies.data, selectedModels]);
 
+  const [selectedIndex, setSelectedIndex] = useState(0);
+  const capture = usePostHogClientCapture();
+  const tabs = {
+    value: String(selectedIndex < data.length ? selectedIndex : 0),
+    options: data.map((item, index) => ({
+      value: String(index),
+      label: item.tabTitle,
+    })),
+    onValueChange: (value: string) => {
+      const index = Number(value);
+      setSelectedIndex(index);
+      capture("dashboard:chart_tab_switch", {
+        tabLabel: data[index]?.tabTitle,
+      });
+    },
+  };
+  const item = data[selectedIndex] ?? data[0];
+  const chartData = useMemo(
+    () => timeSeriesToDataPoints(item?.data ?? []),
+    [item?.data],
+  );
+
   return (
-    <DashboardCard
-      className={className}
-      title="Model latencies"
-      description="Latencies (seconds) per LLM generation"
-      isLoading={
-        isLoading || (latencies.isPending && selectedModels.length > 0)
-      }
-      headerRight={
-        <div className="flex items-center justify-end">
-          <ModelSelectorPopover
-            allModels={allModels}
-            selectedModels={selectedModels}
-            setSelectedModels={setSelectedModels}
-          />
-        </div>
-      }
-    >
-      <TabComponent
-        tabs={data.map((item) => {
-          return {
-            tabTitle: item.tabTitle,
-            content: !isEmptyTimeSeries({ data: item.data }) ? (
-              // The height is the flex basis (floor); grow lets the chart absorb
-              // extra tile height. On grid (lg) screens the floor is smaller so
-              // tiles fit narrow viewports — grow recovers the height above the
-              // grid's rowHeight floor. (LFE-10813)
-              <div className="h-80 w-full shrink-0 grow lg:h-56">
-                <DashboardLineTimeSeriesChart
-                  data={item.data}
-                  label="Latency"
-                  unit="millisecond"
-                  syncId={syncId}
-                  sync={sync}
-                  missingValue="gap"
-                />
-              </div>
-            ) : (
-              <NoDataOrLoading
-                isLoading={isLoading || latencies.isPending}
-                className="h-auto grow"
-              />
-            ),
-          };
-        })}
+    <div className={className}>
+      <WidgetChartCard
+        chartType="LINE_TIME_SERIES"
+        actions={actions}
+        title="Model latencies"
+        description="Latencies (seconds) per LLM generation"
+        tabs={tabs}
+        state={{
+          status:
+            isLoading || (latencies.isPending && selectedModels.length > 0)
+              ? "loading"
+              : "ready",
+        }}
+        controls={[
+          {
+            type: "multiselect",
+            id: "models",
+            label: "Models",
+            value: selectedModels,
+            options: allModels.map(({ model }) => ({
+              value: model,
+              label: model || "none",
+            })),
+            onValueChange: setSelectedModels,
+            placeholder: "Select models",
+            searchPlaceholder: "Search models...",
+            emptyMessage: "No model found.",
+            selectAllLabel: "Select All",
+          },
+        ]}
+        data={chartData}
+        label="Latency"
+        unit="millisecond"
+        syncId={syncId}
+        sync={sync}
+        missingValue="gap"
       />
-    </DashboardCard>
+    </div>
   );
 };

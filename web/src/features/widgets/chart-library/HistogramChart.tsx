@@ -1,4 +1,6 @@
+import { type ComponentProps } from "react";
 import { HistogramChart as DesignSystemHistogramChart } from "@/src/components/design-system/charts/HistogramChart/HistogramChart";
+import { DataCard } from "@/src/components/design-system/cards/DataCard/DataCard";
 import {
   type DataPoint,
   type MetricFormatterFunction,
@@ -18,10 +20,12 @@ const HistogramChart = ({
     },
   },
   metricFormatter = (value, options) => formatMetric(value, options),
+  card,
 }: {
   data: DataPoint[];
   config?: ChartProps["config"];
   metricFormatter?: MetricFormatterFunction;
+  card?: Omit<ComponentProps<typeof DataCard>, "visualization">;
 }) => {
   const formatBinEdge = (value: number) =>
     toFullMetricString(metricFormatter(value, { style: "compact" }));
@@ -55,18 +59,20 @@ const HistogramChart = ({
     );
   }
 
-  return (
-    <DesignSystemHistogramChart
-      data={histogramData}
-      color={config.count?.color ?? "hsl(var(--chart-fill-1))"}
-      valueFormatter={(value) =>
-        toFullMetricString(formatMetric(value, { style: "compact" }))
-      }
-      ariaLabel="Histogram"
-      tooltipHeading={(label) => `Bin: ${label}`}
-      tooltipValueLabel="Count"
-    />
-  );
+  const chart = {
+    data: histogramData,
+    color: config.count?.color ?? "hsl(var(--chart-fill-1))",
+    valueFormatter: (value: number) =>
+      toFullMetricString(formatMetric(value, { style: "compact" })),
+    ariaLabel: "Histogram",
+    tooltipHeading: (label: string) => `Bin: ${label}`,
+    tooltipValueLabel: "Count",
+  } satisfies ComponentProps<typeof DesignSystemHistogramChart>;
+  if (card)
+    return (
+      <DataCard {...card} visualization={{ type: "histogram", ...chart }} />
+    );
+  return <DesignSystemHistogramChart {...chart} />;
 };
 
 export default HistogramChart;

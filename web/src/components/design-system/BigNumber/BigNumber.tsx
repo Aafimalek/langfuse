@@ -1,7 +1,5 @@
-/* eslint-disable @repo/no-style-props */
 import React, { useLayoutEffect, useRef, useState, useMemo } from "react";
 import { cn } from "@/src/utils/tailwind";
-import { type ChartProps } from "@/src/features/widgets/chart-library/chart-props";
 
 // This should ideally be read based on the actual font sizes defined in Tailwind
 const baseFontSizeLookup = {
@@ -42,27 +40,20 @@ const getAffixFontSize = (size: FontSizeClass) => {
   return affixFontSizeLookup[size];
 };
 
-export const BigNumber: React.FC<ChartProps> = ({
-  data,
-  className,
-  metricFormatter,
-}: ChartProps & { className?: string }) => {
+export const BigNumber = ({
+  value: calculatedMetric,
+  valueFormatter: metricFormatter,
+}: {
+  value: number;
+  valueFormatter?: (
+    value: number,
+    options: { style: "compact"; maxCharacters?: number },
+  ) => { negative?: boolean; prefix?: string; main: string; suffix?: string };
+}) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const textRef = useRef<HTMLSpanElement>(null);
   const [fontSize, setFontSize] = useState<FontSizeClass>("text-6xl");
   const [maxCharacters, setMaxCharacters] = useState<number>();
-
-  const calculatedMetric = useMemo(() => {
-    // Show the sum of all metrics, or just the first metric if only one
-    if (data.length === 1) {
-      return typeof data[0].metric === "number" ? data[0].metric : 0;
-    }
-
-    return data.reduce((acc, d) => {
-      const metric = typeof d.metric === "number" ? d.metric : 0;
-      return acc + metric;
-    }, 0);
-  }, [data]);
 
   const displayValue = useMemo(() => {
     return metricFormatter
@@ -146,10 +137,7 @@ export const BigNumber: React.FC<ChartProps> = ({
   return (
     <div
       ref={containerRef}
-      className={cn(
-        "flex h-full w-full flex-col items-center justify-center",
-        className,
-      )}
+      className="flex h-full w-full flex-col items-center justify-center"
     >
       <div className="flex items-baseline justify-center gap-1">
         {displayValue.prefix && (

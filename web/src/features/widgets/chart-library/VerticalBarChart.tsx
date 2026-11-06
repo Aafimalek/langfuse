@@ -1,4 +1,5 @@
-import { useMemo } from "react";
+import { type ComponentProps, useMemo } from "react";
+import { DataCard } from "@/src/components/design-system/cards/DataCard/DataCard";
 
 import { BarChart as DesignSystemBarChart } from "@/src/components/design-system/charts/BarChart/BarChart";
 import { type ChartProps } from "@/src/features/widgets/chart-library/chart-props";
@@ -16,7 +17,10 @@ export function VerticalBarChart({
   colorBarsByCategory = false,
   legendPosition,
   zeroBaseline = false,
-}: ChartProps) {
+  card,
+}: ChartProps & {
+  card?: Omit<ComponentProps<typeof DataCard>, "visualization">;
+}) {
   const categoryBars = useMemo(
     () => (colorBarsByCategory ? prepareCategoryBars(data) : null),
     [colorBarsByCategory, data],
@@ -33,24 +37,24 @@ export function VerticalBarChart({
   const formatValue = (value: number) =>
     toFullMetricString(metricFormatter(value, { style: "compact" }));
 
-  return (
-    <DesignSystemBarChart
-      data={chartData}
-      color={config?.metric?.color ?? "hsl(var(--chart-fill-1))"}
-      valueFormatter={formatValue}
-      hideXAxisLabels={hideXAxisLabels}
-      zeroBaseline={zeroBaseline}
-      legend={
-        colorBarsByCategory && legendPosition !== "none"
-          ? {
-              items: (categoryBars?.legend ?? []).map((item) => ({
-                id: item.category,
-                label: item.category,
-                color: item.color,
-              })),
-            }
-          : undefined
-      }
-    />
-  );
+  const chart = {
+    data: chartData,
+    color: config?.metric?.color ?? "hsl(var(--chart-fill-1))",
+    valueFormatter: formatValue,
+    hideXAxisLabels,
+    zeroBaseline,
+    legend:
+      colorBarsByCategory && legendPosition !== "none"
+        ? {
+            items: (categoryBars?.legend ?? []).map((item) => ({
+              id: item.category,
+              label: item.category,
+              color: item.color,
+            })),
+          }
+        : undefined,
+  } satisfies ComponentProps<typeof DesignSystemBarChart>;
+  if (card)
+    return <DataCard {...card} visualization={{ type: "bar", ...chart }} />;
+  return <DesignSystemBarChart {...chart} />;
 }

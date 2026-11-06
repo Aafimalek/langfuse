@@ -21,6 +21,7 @@
  */
 
 import React, { useMemo, useCallback, useState, useEffect } from "react";
+import { DataCard } from "@/src/components/design-system/cards/DataCard/DataCard";
 import { cn } from "@/src/utils/tailwind";
 import {
   transformToPivotTable,
@@ -44,6 +45,7 @@ import { type OrderByState } from "@langfuse/shared";
  * Uses standard chart data structure with pivot-specific configuration
  */
 export interface PivotTableProps {
+  card?: Omit<React.ComponentProps<typeof DataCard>, "visualization">;
   /** Array of data points from the chart query */
   data: ChartProps["data"];
 
@@ -224,6 +226,7 @@ export const PivotTable: React.FC<PivotTableProps> = ({
   sortState,
   onSortChange,
   isLoading = false,
+  card,
 }) => {
   const units = config?.units;
   // Transform chart data into pivot table structure
@@ -372,6 +375,45 @@ export const PivotTable: React.FC<PivotTableProps> = ({
       </div>
     );
   }
+
+  if (card)
+    return (
+      <DataCard
+        {...card}
+        visualization={{
+          type: "pivot-table",
+          dimensionLabel: config?.dimensions?.length
+            ? config.dimensions.map(formatColumnHeader).join(" / ")
+            : "Dimension",
+          columns: metrics.map((metric) => {
+            const sort = (() => {
+              if (sortState?.column !== metric) return undefined;
+              return sortState.order === "ASC"
+                ? ("asc" as const)
+                : ("desc" as const);
+            })();
+            return { id: metric, label: formatColumnHeader(metric), sort };
+          }),
+          rows: sortedRows.map((row) => {
+            const emphasis = (() => {
+              if (row.isTotal) return "total" as const;
+              if (row.isSubtotal) return "subtotal" as const;
+              return "normal" as const;
+            })();
+            return {
+              id: row.id,
+              label: row.label,
+              level: row.level,
+              emphasis,
+              values: metrics.map((metric, index) =>
+                valueFormatter(row.values[metric], units?.[index]),
+              ),
+            };
+          }),
+          onSort: onSortChange ? handleSort : undefined,
+        }}
+      />
+    );
 
   return (
     <div className="h-full overflow-auto px-5 pb-2">

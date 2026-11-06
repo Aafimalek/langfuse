@@ -258,6 +258,7 @@ export default defineConfig({
     {
       files: ["src/components/design-system/**/*.{ts,tsx}"],
       excludeFiles: [
+        "src/components/design-system/cards/**",
         "src/components/design-system/charts/**",
         "src/components/design-system/factories/**",
         "src/components/design-system/internal/**",

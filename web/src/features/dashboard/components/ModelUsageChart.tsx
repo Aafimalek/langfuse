@@ -1,13 +1,10 @@
 /* eslint-disable @repo/no-style-props */
-import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
-import { DashboardCard } from "@/src/features/dashboard/components/cards/DashboardCard";
+import { type DashboardCardActions } from "@/src/components/design-system/cards/CustomDashboardCard/CustomDashboardCard";
 import {
   extractTimeSeriesData,
   fillMissingValuesAndTransform,
-  isEmptyTimeSeries,
 } from "@/src/features/dashboard/components/hooks";
-import { TabComponent } from "@/src/features/dashboard/components/TabComponent";
-import { TotalMetric } from "@/src/features/dashboard/components/TotalMetric";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { costFormatter, compactNumberFormatter } from "@/src/utils/numbers";
 import { api } from "@/src/utils/api";
 import {
@@ -15,18 +12,17 @@ import {
   dashboardDateRangeAggregationSettings,
 } from "@/src/utils/date-range-utils";
 import { type FilterState, getGenerationLikeTypes } from "@langfuse/shared";
-import {
-  ModelSelectorPopover,
-  useModelSelection,
-} from "@/src/features/dashboard/components/ModelSelectorPopover";
+import { useModelSelection } from "@/src/features/dashboard/components/ModelSelectorPopover";
 import { type QueryType, type ViewVersion } from "@langfuse/shared/query";
 import { mapLegacyUiTableFilterToView } from "@/src/features/dashboard/lib/dashboardUiTableToViewMapping";
 import { type DatabaseRow } from "@/src/server/api/services/sqlInterface";
-import { DashboardLineTimeSeriesChart } from "@/src/features/dashboard/components/DashboardLineTimeSeriesChart";
+import { WidgetChartCard } from "@/src/features/widgets/components/WidgetChartCard";
+import { timeSeriesToDataPoints } from "@/src/features/dashboard/lib/chart-data-adapters";
 import { useScheduledDashboardExecuteQuery } from "@/src/features/dashboard/hooks/DashboardQuerySchedulerProvider";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 
 export const ModelUsageChart = ({
+  actions,
   className,
   projectId,
   globalFilterState,
@@ -40,6 +36,7 @@ export const ModelUsageChart = ({
   syncId,
   sync,
 }: {
+  actions?: DashboardCardActions;
   className?: string;
   projectId: string;
   globalFilterState: FilterState;
@@ -349,65 +346,72 @@ export const ModelUsageChart = ({
     },
   ];
 
+  const [selectedIndex, setSelectedIndex] = useState(0);
+  const capture = usePostHogClientCapture();
+  const tabs = {
+    value: String(selectedIndex < data.length ? selectedIndex : 0),
+    options: data.map((item, index) => ({
+      value: String(index),
+      label: item.tabTitle,
+    })),
+    onValueChange: (value: string) => {
+      const index = Number(value);
+      setSelectedIndex(index);
+      capture("dashboard:chart_tab_switch", {
+        tabLabel: data[index]?.tabTitle,
+      });
+    },
+  };
+  const item = data[selectedIndex] ?? data[0]!;
+  const chartData = useMemo(
+    () => timeSeriesToDataPoints(item.data),
+    [item.data],
+  );
+
   return (
-    <DashboardCard
-      className={className}
-      title="Model Usage"
-      isLoading={
-        isLoading || (queryResult.isPending && selectedModels.length > 0)
-      }
-      headerRight={
-        <div className="flex items-center justify-end">
-          <ModelSelectorPopover
-            allModels={allModels}
-            selectedModels={selectedModels}
-            setSelectedModels={setSelectedModels}
-          />
-        </div>
-      }
-    >
-      <TabComponent
-        tabs={data.map((item) => {
-          return {
-            tabTitle: item.tabTitle,
-            content: (
-              <>
-                <TotalMetric
-                  metric={item.totalMetric}
-                  description={item.metricDescription}
-                  className="mb-4"
-                />
-                {isEmptyTimeSeries({ data: item.data }) ||
-                isLoading ||
-                queryResult.isPending ? (
-                  <NoDataOrLoading
-                    isLoading={isLoading || queryResult.isPending}
-                    className="h-auto grow"
-                  />
-                ) : (
-                  // The height is the flex basis (floor); grow lets the chart absorb
-                  // extra tile height. On grid (lg) screens the floor is smaller so
-                  // tiles fit narrow viewports — grow recovers the height above the
-                  // grid's rowHeight floor. (LFE-10813)
-                  <div className="h-80 w-full shrink-0 grow lg:h-56">
-                    <DashboardLineTimeSeriesChart
-                      data={item.data}
-                      label={item.chartMetricLabel}
-                      unit={item.chartUnit}
-                      // Token/cost totals are additive sums. (LFE-10498)
-                      legendSummary="sum"
-                      syncId={syncId}
-                      sync={sync}
-                      // Additive sums: a bucket without data honestly sums to 0. (LFE-10694)
-                      missingValue="zero"
-                    />
-                  </div>
-                )}
-              </>
-            ),
-          };
-        })}
+    <div className={className}>
+      <WidgetChartCard
+        chartType="LINE_TIME_SERIES"
+        actions={actions}
+        title="Model Usage"
+        tabs={tabs}
+        state={{
+          status:
+            isLoading || (queryResult.isPending && selectedModels.length > 0)
+              ? "loading"
+              : "ready",
+        }}
+        controls={[
+          {
+            type: "multiselect",
+            id: "models",
+            label: "Models",
+            value: selectedModels,
+            options: allModels.map(({ model }) => ({
+              value: model,
+              label: model || "none",
+            })),
+            onValueChange: setSelectedModels,
+            placeholder: "Select models",
+            searchPlaceholder: "Search models...",
+            emptyMessage: "No model found.",
+            selectAllLabel: "Select All",
+          },
+        ]}
+        metric={{
+          value: item.totalMetric,
+          description: item.metricDescription,
+        }}
+        data={chartData}
+        label={item.chartMetricLabel}
+        unit={item.chartUnit}
+        // Token/cost totals are additive sums. (LFE-10498)
+        legendSummary="sum"
+        syncId={syncId}
+        sync={sync}
+        // Additive sums: a bucket without data honestly sums to 0. (LFE-10694)
+        missingValue="zero"
       />
-    </DashboardCard>
+    </div>
   );
 };

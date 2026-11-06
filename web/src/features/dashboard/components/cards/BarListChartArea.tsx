@@ -30,7 +30,7 @@ export function BarListChartArea({
   metricFormatter?: MetricFormatterFunction;
 }) {
   return (
-    <div className="mt-4 min-h-0 w-full flex-1">
+    <div className="min-h-0 w-full flex-1">
       <Chart
         chartType="HORIZONTAL_BAR"
         data={barListToDataPoints(data)}

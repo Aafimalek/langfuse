@@ -3,9 +3,9 @@ import { useMemo } from "react";
 import { type z } from "zod";
 
 import { api } from "@/src/utils/api";
-import { Card, CardContent } from "@/src/components/ui/card";
+import { Card, CardContent } from "@/src/components/design-system/Card/Card";
 import { Chart } from "@/src/features/widgets/chart-library/Chart";
-import { ChartLoadingState } from "@/src/features/widgets/chart-library/ChartLoadingState";
+import { ChartLoadingState } from "@/src/components/design-system/ChartLoadingState/ChartLoadingState";
 import type { DataPoint } from "@/src/features/widgets/chart-library/chart-props";
 import { getWidgetMetricPresentation } from "@/src/features/widgets/utils";
 import {

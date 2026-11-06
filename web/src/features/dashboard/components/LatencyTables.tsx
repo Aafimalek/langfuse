@@ -1,18 +1,15 @@
 /* eslint-disable @repo/no-style-props, @repo/component-file-structure */
-import { RightAlignedCell } from "@/src/features/dashboard/components/RightAlignedCell";
-import { DashboardCard } from "@/src/features/dashboard/components/cards/DashboardCard";
-import { DashboardTable } from "@/src/features/dashboard/components/cards/DashboardTable";
+import { type DashboardCardActions } from "@/src/components/design-system/cards/CustomDashboardCard/CustomDashboardCard";
+import { DataCard } from "@/src/components/design-system/cards/DataCard/DataCard";
 import {
   ObservationType,
   type FilterState,
   getGenerationLikeTypes,
-  truncate,
 } from "@langfuse/shared";
 
 import { formatIntervalSeconds } from "@/src/utils/dates";
 
 import { cn } from "@/src/utils/tailwind";
-import { Popup } from "@/src/components/layouts/doc-popup";
 import { type QueryType, type ViewVersion } from "@langfuse/shared/query";
 import { mapLegacyUiTableFilterToView } from "@/src/features/dashboard/lib/dashboardUiTableToViewMapping";
 import { useScheduledDashboardExecuteQuery } from "@/src/features/dashboard/hooks/DashboardQuerySchedulerProvider";
@@ -153,53 +150,41 @@ const generateLatencyData = (
   return data
     ? data
         .filter((item) => item[nameField] !== null)
-        .map((item, i) => [
-          <div key={`${item[nameField] as string}-${i}`}>
-            <Popup
-              triggerContent={
-                item.type ? (
-                  <div className="flex items-center gap-2">
-                    <span className="text-muted-foreground text-[10px] font-bold tracking-wide uppercase">
-                      {String(item.type)}
-                    </span>
-                    <span>{truncate(item[nameField] as string)}</span>
-                  </div>
-                ) : (
-                  truncate(item[nameField] as string)
-                )
-              }
-              description={
-                item.type
-                  ? `${String(item.type)} · ${item[nameField] as string}`
-                  : (item[nameField] as string)
-              }
-            />
-          </div>,
-          <RightAlignedCell key={`${i}-p50`}>
-            {item.p50_latency
+        .map((item) => [
+          {
+            value: String(item[nameField]),
+            prefix: item.type ? String(item.type) : undefined,
+            truncateAt: 16,
+            detail: item.type
+              ? `${String(item.type)} · ${String(item[nameField])}`
+              : String(item[nameField]),
+          },
+          {
+            value: item.p50_latency
               ? formatIntervalSeconds(Number(item.p50_latency) / 1000, 2)
-              : "-"}
-          </RightAlignedCell>,
-          <RightAlignedCell key={`${i}-p90`}>
-            {item.p90_latency
+              : "-",
+          },
+          {
+            value: item.p90_latency
               ? formatIntervalSeconds(Number(item.p90_latency) / 1000, 2)
-              : "-"}
-          </RightAlignedCell>,
-          <RightAlignedCell key={`${i}-p95`}>
-            {item.p95_latency
+              : "-",
+          },
+          {
+            value: item.p95_latency
               ? formatIntervalSeconds(Number(item.p95_latency) / 1000, 2)
-              : "-"}
-          </RightAlignedCell>,
-          <RightAlignedCell key={`${i}-p99`}>
-            {item.p99_latency
+              : "-",
+          },
+          {
+            value: item.p99_latency
               ? formatIntervalSeconds(Number(item.p99_latency) / 1000, 2)
-              : "-"}
-          </RightAlignedCell>,
+              : "-",
+          },
         ])
     : [];
 };
 
 export const LatencyTable = ({
+  actions,
   kind,
   className,
   projectId,
@@ -210,6 +195,7 @@ export const LatencyTable = ({
   metricsVersion,
   schedulerId,
 }: {
+  actions?: DashboardCardActions;
   kind: LatencyTableKind;
   className?: string;
   projectId: string;
@@ -245,30 +231,30 @@ export const LatencyTable = ({
     },
   );
 
+  const state = (() => {
+    if (isLoading || latencies.isPending) return { status: "loading" as const };
+    return { status: "ready" as const };
+  })();
+
   return (
-    <DashboardCard
-      // h-full pins the card to the tile so the table fits its rows to the
-      // AVAILABLE height instead of overflowing; min-h-0 lets the flex column
-      // shrink so the row area scrolls internally. (LFE-11035)
-      className={cn(className, "h-full")}
-      cardContentClassName="min-h-0"
-      title={title(metricsVersion)}
-      isLoading={isLoading || latencies.isPending}
-    >
-      <DashboardTable
-        headers={[
-          nameHeader,
-          <RightAlignedCell key="p50">p50</RightAlignedCell>,
-          <RightAlignedCell key="p90">p90</RightAlignedCell>,
-          <RightAlignedCell key="p95">
-            p95<span className="ml-1">▼</span>
-          </RightAlignedCell>,
-          <RightAlignedCell key="p99">p99</RightAlignedCell>,
-        ]}
-        rows={generateLatencyData(nameField(metricsVersion), latencies.data)}
-        isLoading={isLoading || latencies.isPending}
-        collapse={{ collapsed: 5, expanded: 20 }}
+    <div className={cn(className, "h-full")}>
+      <DataCard
+        actions={actions}
+        title={title(metricsVersion)}
+        state={state}
+        visualization={{
+          type: "table",
+          columns: [
+            { id: "name", label: nameHeader },
+            { id: "p50", label: "p50", align: "right" },
+            { id: "p90", label: "p90", align: "right" },
+            { id: "p95", label: "p95", align: "right", sort: "desc" },
+            { id: "p99", label: "p99", align: "right" },
+          ],
+          rows: generateLatencyData(nameField(metricsVersion), latencies.data),
+          collapse: { collapsed: 5, expanded: 20 },
+        }}
       />
-    </DashboardCard>
+    </div>
   );
 };

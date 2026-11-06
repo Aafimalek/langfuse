@@ -1,13 +1,13 @@
 /* eslint-disable @repo/no-style-props */
 import { type FilterState, getGenerationLikeTypes } from "@langfuse/shared";
-import { DashboardCard } from "@/src/features/dashboard/components/cards/DashboardCard";
+import { type DashboardCardActions } from "@/src/components/design-system/cards/CustomDashboardCard/CustomDashboardCard";
 import { compactNumberFormatter, costFormatter } from "@/src/utils/numbers";
-import { TabComponent } from "@/src/features/dashboard/components/TabComponent";
-import { TotalMetric } from "@/src/features/dashboard/components/TotalMetric";
-import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { useMemo, useState } from "react";
+import { barListToDataPoints } from "@/src/features/dashboard/lib/chart-data-adapters";
 import { type QueryType, type ViewVersion } from "@langfuse/shared/query";
 import { mapLegacyUiTableFilterToView } from "@/src/features/dashboard/lib/dashboardUiTableToViewMapping";
-import { BarListChartArea } from "@/src/features/dashboard/components/cards/BarListChartArea";
+import { WidgetChartCard } from "@/src/features/widgets/components/WidgetChartCard";
 import { traceViewQuery } from "@/src/features/dashboard/lib/dashboard-utils";
 import { useScheduledDashboardExecuteQuery } from "@/src/features/dashboard/hooks/DashboardQuerySchedulerProvider";
 import { cn } from "@/src/utils/tailwind";
@@ -22,6 +22,7 @@ type BarChartDataPoint = {
 };
 
 export const UserChart = ({
+  actions,
   className,
   projectId,
   globalFilterState,
@@ -31,6 +32,7 @@ export const UserChart = ({
   metricsVersion,
   schedulerId,
 }: {
+  actions?: DashboardCardActions;
   className?: string;
   projectId: string;
   globalFilterState: FilterState;
@@ -179,45 +181,54 @@ export const UserChart = ({
     },
   ] as const;
 
+  const [selectedIndex, setSelectedIndex] = useState(0);
+  const capture = usePostHogClientCapture();
+  const tabs = {
+    value: String(selectedIndex < data.length ? selectedIndex : 0),
+    options: data.map((item, index) => ({
+      value: String(index),
+      label: item.tabTitle,
+    })),
+    onValueChange: (value: string) => {
+      const index = Number(value);
+      setSelectedIndex(index);
+      capture("dashboard:chart_tab_switch", {
+        tabLabel: data[index]?.tabTitle,
+      });
+    },
+  };
+  const item = data[selectedIndex] ?? data[0];
+  const chartData = useMemo(() => barListToDataPoints(item.data), [item.data]);
+
   return (
-    <DashboardCard
-      // h-full pins the card to the tile so the chart area gets the AVAILABLE
-      // height, not its own content; min-h-0 lets the flex column shrink so
-      // the top list scrolls internally.
-      className={cn(className, "h-full")}
-      cardContentClassName="min-h-0"
-      title="User consumption"
-      isLoading={isLoading || user.isPending}
-    >
-      <TabComponent
-        tabs={data.map((item) => {
-          return {
-            tabTitle: item.tabTitle,
-            content:
-              item.data.length > 0 ? (
-                <div className="flex min-h-0 grow flex-col">
-                  <TotalMetric
-                    metric={item.totalMetric}
-                    description={item.metricDescription}
-                  />
-                  <BarListChartArea
-                    data={item.data}
-                    maxBars={MAX_BARS}
-                    metricLabel={item.chartMetricLabel}
-                    unit={item.chartUnit}
-                  />
-                </div>
-              ) : (
-                <NoDataOrLoading
-                  isLoading={isLoading || user.isPending}
-                  description="Consumption per user is tracked by passing their ids on traces."
-                  href="https://langfuse.com/docs/observability/features/users"
-                  className="h-auto grow"
-                />
-              ),
-          };
-        })}
+    <div className={cn(className, "h-full")}>
+      <WidgetChartCard
+        chartType="HORIZONTAL_BAR"
+        actions={actions}
+        title="User consumption"
+        tabs={tabs}
+        state={{
+          status:
+            isLoading ||
+            (selectedIndex === 0 ? user.isPending : traces.isPending)
+              ? "loading"
+              : "ready",
+        }}
+        emptyState={{
+          description:
+            "Consumption per user is tracked by passing their ids on traces.",
+          documentationUrl:
+            "https://langfuse.com/docs/observability/features/users",
+        }}
+        metric={{
+          value: item.totalMetric,
+          description: item.metricDescription,
+        }}
+        data={chartData}
+        rowLimit={MAX_BARS}
+        label={item.chartMetricLabel}
+        unit={item.chartUnit}
       />
-    </DashboardCard>
+    </div>
   );
 };

@@ -1,12 +1,11 @@
 /* eslint-disable @repo/no-style-props */
 import { type FilterState } from "@langfuse/shared";
-import { DashboardCard } from "@/src/features/dashboard/components/cards/DashboardCard";
-import { TotalMetric } from "@/src/features/dashboard/components/TotalMetric";
+import { type DashboardCardActions } from "@/src/components/design-system/cards/CustomDashboardCard/CustomDashboardCard";
 import { compactNumberFormatter } from "@/src/utils/numbers";
-import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
 import { type QueryType, type ViewVersion } from "@langfuse/shared/query";
 import { formatMetric } from "@/src/features/widgets/chart-library/utils";
-import { BarListChartArea } from "@/src/features/dashboard/components/cards/BarListChartArea";
+import { WidgetChartCard } from "@/src/features/widgets/components/WidgetChartCard";
+import { barListToDataPoints } from "@/src/features/dashboard/lib/chart-data-adapters";
 import { traceViewQuery } from "@/src/features/dashboard/lib/dashboard-utils";
 import { useScheduledDashboardExecuteQuery } from "@/src/features/dashboard/hooks/DashboardQuerySchedulerProvider";
 import { cn } from "@/src/utils/tailwind";
@@ -16,6 +15,7 @@ import { cn } from "@/src/utils/tailwind";
 const MAX_BARS = 20;
 
 export const TracesBarListChart = ({
+  actions,
   className,
   projectId,
   globalFilterState,
@@ -25,6 +25,7 @@ export const TracesBarListChart = ({
   metricsVersion,
   schedulerId,
 }: {
+  actions?: DashboardCardActions;
   className?: string;
   projectId: string;
   globalFilterState: FilterState;
@@ -99,7 +100,7 @@ export const TracesBarListChart = ({
 
   // Transform the data to match the expected format for the BarList
   const transformedTraces =
-    traces.data?.map((item: any) => {
+    traces.data?.map((item) => {
       return {
         name: item[traceNameField]
           ? (item[traceNameField] as string)
@@ -109,43 +110,37 @@ export const TracesBarListChart = ({
     }) ?? [];
 
   return (
-    <DashboardCard
-      // h-full pins the card to the tile so the chart area gets the AVAILABLE
-      // height, not its own content; min-h-0 on the content lets the flex
-      // column shrink so the top list scrolls internally instead of
-      // overflowing the tile.
-      className={cn(className, "h-full")}
-      cardContentClassName="min-h-0"
-      title="Traces"
-      description={null}
-      isLoading={isLoading || traces.isPending || totalTraces.isPending}
-    >
-      <>
-        <TotalMetric
-          metric={compactNumberFormatter(
+    <div className={cn(className, "h-full")}>
+      <WidgetChartCard
+        chartType="HORIZONTAL_BAR"
+        actions={actions}
+        title="Traces"
+        description={null}
+        state={{
+          status:
+            isLoading || traces.isPending || totalTraces.isPending
+              ? "loading"
+              : "ready",
+        }}
+        emptyState={{
+          description:
+            "Traces contain details about LLM applications and can be created using the SDK.",
+          documentationUrl: "https://langfuse.com/docs/get-started",
+        }}
+        metric={{
+          value: compactNumberFormatter(
             totalTraces.data?.[0]?.[countField]
               ? Number(totalTraces.data[0][countField])
               : 0,
-          )}
-          description="Total traces tracked"
-        />
-        {transformedTraces.length > 0 ? (
-          <BarListChartArea
-            data={transformedTraces}
-            maxBars={MAX_BARS}
-            metricLabel="Traces"
-            unit="traces"
-            metricFormatter={(value) => formatMetric(value, { style: "full" })}
-          />
-        ) : (
-          <NoDataOrLoading
-            isLoading={isLoading || traces.isPending || totalTraces.isPending}
-            description="Traces contain details about LLM applications and can be created using the SDK."
-            href="https://langfuse.com/docs/get-started"
-            className="h-auto grow"
-          />
-        )}
-      </>
-    </DashboardCard>
+          ),
+          description: "Total traces tracked",
+        }}
+        data={barListToDataPoints(transformedTraces)}
+        rowLimit={MAX_BARS}
+        label="Traces"
+        unit="traces"
+        metricFormatter={(value) => formatMetric(value, { style: "full" })}
+      />
+    </div>
   );
 };

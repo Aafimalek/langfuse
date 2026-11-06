@@ -1,7 +1,10 @@
 /* eslint-disable no-nested-ternary */
 /* eslint-disable @repo/no-style-props */
 import { api } from "@/src/utils/api";
-import { DashboardCard } from "@/src/features/dashboard/components/cards/DashboardCard";
+import {
+  CustomDashboardCard,
+  type DashboardCardActions,
+} from "@/src/components/design-system/cards/CustomDashboardCard/CustomDashboardCard";
 import { type FilterState, type ScoreDataTypeType } from "@langfuse/shared";
 import { type DashboardDateRangeAggregationOption } from "@/src/utils/date-range-utils";
 import {
@@ -19,12 +22,11 @@ import { NumericScoreTimeSeriesChart } from "@/src/features/dashboard/components
 import { CategoricalScoreChart } from "@/src/features/dashboard/components/score-analytics/CategoricalScoreChart";
 import { NumericScoreHistogram } from "@/src/features/dashboard/components/score-analytics/NumericScoreHistogram";
 import DocPopup from "@/src/components/layouts/doc-popup";
-import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
 import useLocalStorage from "@/src/components/useLocalStorage";
 import { type ViewVersion } from "@langfuse/shared/query";
-import { MultiSelectTagInput } from "@/src/components/design-system/MultiSelectTagInput/MultiSelectTagInput";
 
 export function ScoreAnalytics(props: {
+  actions?: DashboardCardActions;
   className?: string;
   agg: DashboardDateRangeAggregationOption;
   globalFilterState: FilterState;
@@ -98,31 +100,45 @@ export function ScoreAnalytics(props: {
   }, [scoreAnalyticsOptions, scoreKeyToData]);
 
   return (
-    <DashboardCard
-      className={props.className}
-      title="Scores Analytics"
-      description="Aggregate scores and averages over time"
-      isLoading={props.isLoading || scoreKeysAndProps.isPending}
-      headerClassName="grid grid-cols-[1fr_auto_auto] items-center"
-      headerChildren={
-        !scoreKeysAndProps.isPending &&
-        !props.isLoading &&
-        Boolean(scoreKeysAndProps.data?.scoreColumns.length) && (
-          <div className="w-80 max-w-full">
-            <MultiSelectTagInput
-              value={scoreAnalyticsValues.map(({ key }) => key)}
-              options={scoreSelectorOptions}
-              onValueChange={setSelectedDashboardScoreKeys}
-              placeholder="Select scores"
-              searchPlaceholder="Search scores..."
-              emptyMessage="No scores found."
-            />
-          </div>
-        )
-      }
-    >
-      {Boolean(scoreKeysAndProps.data?.scoreColumns.length) &&
-      Boolean(scoreAnalyticsValues.length) ? (
+    <div className={props.className}>
+      <CustomDashboardCard
+        actions={props.actions}
+        title="Scores Analytics"
+        description="Aggregate scores and averages over time"
+        state={{
+          status:
+            props.isLoading || scoreKeysAndProps.isPending
+              ? "loading"
+              : !scoreKeysAndProps.data?.scoreColumns.length
+                ? "empty"
+                : scoreAnalyticsValues.length === 0
+                  ? "empty"
+                  : "ready",
+          ...(!scoreAnalyticsValues.length &&
+          scoreKeysAndProps.data?.scoreColumns.length
+            ? { message: "Select a score to view analytics" }
+            : {}),
+        }}
+        controls={
+          !scoreKeysAndProps.isPending &&
+          !props.isLoading &&
+          scoreKeysAndProps.data?.scoreColumns.length
+            ? [
+                {
+                  type: "multiselect",
+                  id: "scores",
+                  label: "Scores",
+                  value: scoreAnalyticsValues.map(({ key }) => key),
+                  options: scoreSelectorOptions,
+                  onValueChange: setSelectedDashboardScoreKeys,
+                  placeholder: "Select scores",
+                  searchPlaceholder: "Search scores...",
+                  emptyMessage: "No scores found.",
+                },
+              ]
+            : []
+        }
+      >
         <div className="[&_text]:fill-muted-foreground [&_tspan]:fill-muted-foreground grid grid-flow-row gap-4">
           {scoreAnalyticsValues.map(({ key: scoreKey }, index) => {
             const scoreData = scoreKeyToData.get(scoreKey);
@@ -221,15 +237,7 @@ export function ScoreAnalytics(props: {
             );
           })}
         </div>
-      ) : Boolean(scoreKeysAndProps.data?.scoreColumns.length) ? (
-        <div className="flex min-h-36 w-full flex-1 items-center justify-center rounded-md border">
-          <p className="text-muted-foreground">
-            Select a score to view analytics
-          </p>
-        </div>
-      ) : (
-        <NoDataOrLoading isLoading={scoreKeysAndProps.isPending} />
-      )}
-    </DashboardCard>
+      </CustomDashboardCard>
+    </div>
   );
 }

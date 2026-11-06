@@ -1,7 +1,7 @@
 import React from "react";
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { SLOW_QUERY_HINT_TEXT } from "@langfuse/shared";
-import { ChartLoadingState } from "@/src/features/widgets/chart-library/ChartLoadingState";
+import { ChartLoadingState } from "@/src/components/design-system/ChartLoadingState/ChartLoadingState";
 
 describe("ChartLoadingState", () => {
   beforeEach(() => {

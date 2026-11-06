@@ -1,16 +1,8 @@
 /* eslint-disable @repo/no-style-props */
-import DocPopup from "@/src/components/layouts/doc-popup";
-import { RightAlignedCell } from "@/src/features/dashboard/components/RightAlignedCell";
-import { LeftAlignedCell } from "@/src/features/dashboard/components/LeftAlignedCell";
-import { DashboardCard } from "@/src/features/dashboard/components/cards/DashboardCard";
-import { DashboardTable } from "@/src/features/dashboard/components/cards/DashboardTable";
-import {
-  type FilterState,
-  getGenerationLikeTypes,
-  truncate,
-} from "@langfuse/shared";
+import { type DashboardCardActions } from "@/src/components/design-system/cards/CustomDashboardCard/CustomDashboardCard";
+import { DataCard } from "@/src/components/design-system/cards/DataCard/DataCard";
+import { type FilterState, getGenerationLikeTypes } from "@langfuse/shared";
 import { compactNumberFormatter, costFormatter } from "@/src/utils/numbers";
-import { TotalMetric } from "./TotalMetric";
 
 import { type QueryType, type ViewVersion } from "@langfuse/shared/query";
 import { mapLegacyUiTableFilterToView } from "@/src/features/dashboard/lib/dashboardUiTableToViewMapping";
@@ -18,6 +10,7 @@ import { useScheduledDashboardExecuteQuery } from "@/src/features/dashboard/hook
 import { cn } from "@/src/utils/tailwind";
 
 export const ModelCostTable = ({
+  actions,
   className,
   projectId,
   globalFilterState,
@@ -27,6 +20,7 @@ export const ModelCostTable = ({
   metricsVersion,
   schedulerId,
 }: {
+  actions?: DashboardCardActions;
   className: string;
   projectId: string;
   globalFilterState: FilterState;
@@ -85,56 +79,56 @@ export const ModelCostTable = ({
   const metricsData = metrics.data
     ? metrics.data
         .filter((item) => item.providedModelName !== null)
-        .map((item, i) => [
-          <LeftAlignedCell
-            key={`${i}-model`}
-            title={item.providedModelName as string}
-          >
-            {truncate(item.providedModelName as string, 30)}
-          </LeftAlignedCell>,
-          <RightAlignedCell key={`${i}-tokens`}>
-            {item.sum_totalTokens
+        .map((item) => [
+          {
+            value: String(item.providedModelName),
+            title: String(item.providedModelName),
+            truncateAt: 30,
+          },
+          {
+            value: item.sum_totalTokens
               ? compactNumberFormatter(item.sum_totalTokens as number)
-              : "0"}
-          </RightAlignedCell>,
-          <RightAlignedCell key={`${i}-cost`}>
-            {item.sum_totalCost
+              : "0",
+          },
+          {
+            value: item.sum_totalCost
               ? costFormatter(item.sum_totalCost as number)
-              : "$0"}
-          </RightAlignedCell>,
+              : "$0",
+          },
         ])
     : [];
 
+  const state = (() => {
+    if (isLoading || metrics.isLoading) return { status: "loading" as const };
+    return { status: "ready" as const };
+  })();
+
   return (
-    <DashboardCard
-      // h-full pins the card to the tile so the table fits its rows to the
-      // AVAILABLE height instead of overflowing; min-h-0 lets the flex column
-      // shrink so the row area scrolls internally. (LFE-11035)
-      className={cn(className, "h-full")}
-      cardContentClassName="min-h-0"
-      title="Model costs"
-      isLoading={isLoading || metrics.isLoading}
-    >
-      <DashboardTable
-        headers={[
-          "Model",
-          <RightAlignedCell key="tokens">Tokens</RightAlignedCell>,
-          <RightAlignedCell key="cost">USD</RightAlignedCell>,
-        ]}
-        rows={metricsData}
-        isLoading={isLoading || metrics.isLoading}
-        collapse={{ collapsed: 5, expanded: 20 }}
-      >
-        <TotalMetric
-          metric={costFormatter(totalTokenCost)}
-          description="Total cost"
-        >
-          <DocPopup
-            description="Calculated multiplying the number of tokens with cost per token for each model."
-            href="https://langfuse.com/docs/model-usage-and-cost"
-          />
-        </TotalMetric>
-      </DashboardTable>
-    </DashboardCard>
+    <div className={cn(className, "h-full")}>
+      <DataCard
+        actions={actions}
+        title="Model costs"
+        state={state}
+        visualization={{
+          type: "table",
+          columns: [
+            { id: "model", label: "Model" },
+            { id: "tokens", label: "Tokens", align: "right" },
+            { id: "cost", label: "USD", align: "right" },
+          ],
+          rows: metricsData,
+          collapse: { collapsed: 5, expanded: 20 },
+        }}
+        metric={{
+          value: costFormatter(totalTokenCost),
+          description: "Total cost",
+          documentation: {
+            description:
+              "Calculated multiplying the number of tokens with cost per token for each model.",
+            href: "https://langfuse.com/docs/model-usage-and-cost",
+          },
+        }}
+      />
+    </div>
   );
 };

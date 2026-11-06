@@ -1,6 +1,12 @@
 /* eslint-disable no-nested-ternary, @repo/component-file-structure */
 /* eslint-disable @repo/no-style-props */
-import { useMemo, useState, useCallback, type ReactNode } from "react";
+import {
+  useMemo,
+  useState,
+  useCallback,
+  type ReactNode,
+  type ComponentProps,
+} from "react";
 import { type DashboardWidgetChartType } from "@langfuse/shared/src/db";
 import { type OrderByState } from "@langfuse/shared";
 import {
@@ -14,7 +20,7 @@ import {
   type FormatMetricOptions,
   type LegendPosition,
 } from "@/src/features/widgets/chart-library/chart-props";
-import { ChartLoadingState } from "@/src/features/widgets/chart-library/ChartLoadingState";
+import { ChartLoadingState } from "@/src/components/design-system/ChartLoadingState/ChartLoadingState";
 import {
   getChartLoadingProgress,
   getChartLoadingStateProps,
@@ -137,17 +143,17 @@ const getXAxisValue = (
 };
 
 /**
- * Core widget content: executes query, transforms data, renders chart with loading states.
+ * Shared query preparation for inline charts and connected chart cards.
  *
  * This component handles:
  * - Query execution via useScheduledDashboardExecuteQuery
  * - Data transformation for chart consumption (time_dimension, entity_dimension, dimension, metric)
- * - Chart rendering with the appropriate chart type
+ * - Chart props for the appropriate chart type
  * - Loading and error states
  *
  * For pivot tables, pass sortState and onSortChange to enable sorting.
  */
-export function WidgetContent({
+export function useWidgetChart({
   projectId,
   fetchQuery,
   query,
@@ -160,19 +166,37 @@ export function WidgetContent({
   // equals widget is pending
   isExternalLoading = false,
   schedulerId,
-  layoutHint = "default",
   sortState,
   onSortChange,
-  className,
   entityDimensionLabelMap,
   dimensionLabelMap,
   hideXAxisLabels,
   colorBarsByCategory,
   legendPosition,
   zeroBaseline,
-  emptyState,
   usdPrecision,
-}: WidgetContentProps) {
+}: WidgetQuerySource &
+  Pick<
+    WidgetContentProps,
+    | "query"
+    | "version"
+    | "chartType"
+    | "chartConfig"
+    | "metrics"
+    | "dimensions"
+    | "view"
+    | "isExternalLoading"
+    | "schedulerId"
+    | "sortState"
+    | "onSortChange"
+    | "entityDimensionLabelMap"
+    | "dimensionLabelMap"
+    | "hideXAxisLabels"
+    | "colorBarsByCategory"
+    | "legendPosition"
+    | "zeroBaseline"
+    | "usdPrecision"
+  >) {
   // Transport-only: `version` is a prop here, so an unresolved session can
   // never change WHAT is queried — only whether it streams (SSE) or not.
   const { isV4 } = useReadPath();
@@ -428,7 +452,36 @@ export function WidgetContent({
     return baseConfig;
   }, [chartConfig, chartType, dimensions, metrics, view, version]);
 
-  if (isExternalLoading) {
+  return {
+    chartProps: {
+      chartType,
+      data: transformedData,
+      config: chartPresentation
+        ? { metric: { label: chartPresentation.label } }
+        : undefined,
+      rowLimit: effectiveRowLimit,
+      chartConfig: fullChartConfig,
+      sortState: chartType === "PIVOT_TABLE" ? sortState : undefined,
+      onSortChange: chartType === "PIVOT_TABLE" ? onSortChange : undefined,
+      isLoading: queryResult.isPending || isExternalLoading,
+      metricFormatter: chartPresentation?.metricFormatter,
+      missingValue: getWidgetMissingBucketValue(metrics[0]?.agg ?? "count"),
+      hideXAxisLabels,
+      colorBarsByCategory,
+      legendPosition,
+      zeroBaseline,
+    } satisfies ComponentProps<typeof Chart>,
+    chartLoadingState,
+    loadingProgress,
+    onRetry: queryResult.isError ? handleRetry : undefined,
+  };
+}
+
+export function WidgetContent(props: WidgetContentProps) {
+  const { chartProps, chartLoadingState, loadingProgress, onRetry } =
+    useWidgetChart(props);
+
+  if (props.isExternalLoading) {
     return (
       <div className="bg-background flex items-center justify-center rounded-lg border p-4">
         <div className="text-muted-foreground">Loading...</div>
@@ -437,36 +490,16 @@ export function WidgetContent({
   }
 
   return (
-    <div className={cn("relative min-h-0 flex-1", className)}>
-      <Chart
-        chartType={chartType}
-        data={transformedData}
-        config={
-          chartPresentation
-            ? { metric: { label: chartPresentation.label } }
-            : undefined
-        }
-        rowLimit={effectiveRowLimit}
-        chartConfig={fullChartConfig}
-        sortState={chartType === "PIVOT_TABLE" ? sortState : undefined}
-        onSortChange={chartType === "PIVOT_TABLE" ? onSortChange : undefined}
-        isLoading={queryResult.isPending || isExternalLoading}
-        metricFormatter={chartPresentation?.metricFormatter}
-        missingValue={getWidgetMissingBucketValue(metrics[0]?.agg ?? "count")}
-        hideXAxisLabels={hideXAxisLabels}
-        colorBarsByCategory={colorBarsByCategory}
-        legendPosition={legendPosition}
-        zeroBaseline={zeroBaseline}
-        emptyState={emptyState}
-      />
+    <div className={cn("relative min-h-0 flex-1", props.className)}>
+      <Chart {...chartProps} emptyState={props.emptyState} />
       {chartLoadingState.isLoading && (
         <ChartLoadingState
           showSpinner={chartLoadingState.showSpinner}
           showHintImmediately={chartLoadingState.showHintImmediately}
           hintText={chartLoadingState.hintText}
-          onRetry={queryResult.isError ? handleRetry : undefined}
+          onRetry={onRetry}
           progress={loadingProgress}
-          layout={layoutHint}
+          layout={props.layoutHint ?? "default"}
           className="bg-background/80 absolute inset-0 z-20 backdrop-blur-xs"
         />
       )}

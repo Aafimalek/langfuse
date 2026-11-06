@@ -1,15 +1,79 @@
 /* eslint-disable no-nested-ternary */
 /* eslint-disable @repo/no-style-props */
-import { useEffect, useState } from "react";
+import { type ComponentProps, useEffect, useState } from "react";
 import { cn } from "@/src/utils/tailwind";
 import { SLOW_QUERY_HINT_TEXT } from "@langfuse/shared";
-import { type QueryProgress } from "@/src/hooks/useSSEDashboardQuery";
-import { QueryProgressBar } from "@/src/features/widgets/chart-library/QueryProgressBar";
-import { Button } from "@/src/components/ui/button";
 import { Spinner } from "@/src/components/design-system/Spinner/Spinner";
 
 const DEFAULT_HINT_DELAY_MS = 2000;
 const PROGRESS_REVEAL_DELAY_MS = 1000;
+
+function formatRows(n: number): string {
+  if (n >= 1_000_000_000) return `${(n / 1_000_000_000).toFixed(1)}B`;
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+  if (n >= 1_000) return `${(n / 1_000).toFixed(0)}K`;
+  return String(n);
+}
+
+function QueryProgressBar({
+  progress,
+  className,
+  layout = "default",
+}: {
+  progress?: {
+    percent: number;
+    read_rows: number;
+    total_rows_to_read: number;
+    elapsed_ns?: number;
+    read_bytes?: number;
+  } | null;
+  className?: string;
+  layout?: "default" | "compact" | "tight";
+}) {
+  const hasProgress = progress != null;
+  const percent = hasProgress
+    ? Math.max(0, Math.min(progress.percent * 100, 100))
+    : 0;
+  const compactLayout = layout !== "default";
+  const showProgressLabel = layout !== "tight";
+
+  return (
+    <div className={cn("w-full min-w-0", className)}>
+      <div
+        role="progressbar"
+        aria-label="Query progress"
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-valuenow={hasProgress ? Math.round(percent) : undefined}
+        className={cn(
+          "bg-muted/80 overflow-hidden rounded-full",
+          compactLayout ? "h-1.5" : "h-2",
+        )}
+      >
+        {hasProgress ? (
+          <div
+            className="bg-primary/60 h-full rounded-full transition-all duration-500 ease-out"
+            style={{ width: `${percent}%` }}
+          />
+        ) : null}
+      </div>
+      {showProgressLabel ? (
+        <p
+          className={cn(
+            "text-muted-foreground mt-2 tabular-nums",
+            compactLayout ? "text-[11px] leading-4" : "text-xs",
+          )}
+        >
+          {hasProgress
+            ? `Reading ${formatRows(progress.read_rows)} / ~${formatRows(
+                progress.total_rows_to_read,
+              )} rows`
+            : "Reading query progress..."}
+        </p>
+      ) : null}
+    </div>
+  );
+}
 
 type ChartLoadingStateProps = {
   className?: string;
@@ -19,13 +83,22 @@ type ChartLoadingStateProps = {
   hintDelayMs?: number;
   showSpinner?: boolean;
   showHintImmediately?: boolean;
-  progress?: QueryProgress | null;
+  progress?: ComponentProps<typeof QueryProgressBar>["progress"];
   layout?: "default" | "compact" | "tight";
   onRetry?: () => void;
   retryLabel?: string;
 };
 
-export function ChartLoadingState({
+export function ChartLoadingState({ ...props }: ChartLoadingStateProps) {
+  return (
+    <ChartLoadingStateContent
+      key={`${props.showSpinner !== false}-${props.progress !== undefined}`}
+      {...props}
+    />
+  );
+}
+
+function ChartLoadingStateContent({
   className,
   hintClassName,
   spinnerLabel = "Loading chart data",
@@ -55,7 +128,6 @@ export function ChartLoadingState({
 
   useEffect(() => {
     if (!isPendingProgressState) {
-      setShowProgressPhase(false);
       return;
     }
 
@@ -173,14 +245,13 @@ export function ChartLoadingState({
             </p>
           )}
           {shouldRenderRetry ? (
-            <Button
-              variant="outline"
-              size="sm"
+            <button
+              type="button"
               onClick={onRetry}
-              className="w-fit self-center"
+              className="border-input bg-background hover:bg-accent w-fit self-center rounded-md border px-3 py-2 text-sm font-bold"
             >
               {retryLabel}
-            </Button>
+            </button>
           ) : null}
         </div>
       </div>

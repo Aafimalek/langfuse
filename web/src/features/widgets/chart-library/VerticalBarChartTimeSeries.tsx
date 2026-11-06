@@ -1,4 +1,5 @@
-import { useMemo } from "react";
+import { type ComponentProps, useMemo } from "react";
+import { DataCard } from "@/src/components/design-system/cards/DataCard/DataCard";
 
 import { StackedBarChart } from "@/src/components/design-system/charts/StackedBarChart/StackedBarChart";
 import type { LineChartLegend } from "@/src/components/design-system/charts/LineChart/LineChart";
@@ -30,7 +31,10 @@ export function VerticalBarChartTimeSeries({
   maxVisibleSeries,
   sync,
   hideXAxisLabels = false,
-}: ChartProps) {
+  card,
+}: ChartProps & {
+  card?: Omit<ComponentProps<typeof DataCard>, "visualization">;
+}) {
   const groupedData = useMemo(() => groupDataByTimeDimension(data), [data]);
   const dimensions = useMemo(() => getUniqueDimensions(data), [data]);
   const visibleSeries = useMemo(
@@ -94,6 +98,45 @@ export function VerticalBarChartTimeSeries({
     };
   }, [legendPosition, legendInteraction, legendSummary, maxVisibleSeries]);
 
+  const chartProps = {
+    data: chartData,
+    series: chartSeries,
+    legend: chartLegend,
+    valueFormatter: formatValue,
+    tickFormatter: (key) => timeAxis.formatTick(key),
+    categoryXAxisLabels: timeAxis.mode === "category",
+    tooltipFormatter: (key) => timeAxis.formatTooltip(key),
+    hideXAxisLabels: hideXAxisLabels && timeAxis.mode === "category",
+    sync: sync
+      ? {
+          activeKey: chartData.find(
+            (_, index) =>
+              String(
+                parseChartTimestamp(
+                  groupedData[index]?.time_dimension,
+                )?.getTime() ?? groupedData[index]?.time_dimension,
+              ) === sync.activeKey,
+          )?.key,
+          onActiveKeyChange: (key) =>
+            sync.onActiveKeyChange(
+              key === undefined
+                ? undefined
+                : String(parseChartTimestamp(key)?.getTime() ?? key),
+            ),
+        }
+      : undefined,
+  } satisfies ComponentProps<typeof StackedBarChart>;
+  if (card)
+    return (
+      <DataCard
+        {...card}
+        seriesOverflow={{
+          visibleCount: visibleSeries.visible.length,
+          totalCount: visibleSeries.total,
+        }}
+        visualization={{ type: "stacked-bar", ...chartProps }}
+      />
+    );
   return (
     <div className="flex size-full min-w-0 flex-col">
       {visibleSeries.total > visibleSeries.visible.length ? (
@@ -103,36 +146,7 @@ export function VerticalBarChartTimeSeries({
         />
       ) : null}
       <div className="min-h-0 flex-1">
-        <StackedBarChart
-          data={chartData}
-          series={chartSeries}
-          legend={chartLegend}
-          valueFormatter={formatValue}
-          tickFormatter={(key) => timeAxis.formatTick(key)}
-          categoryXAxisLabels={timeAxis.mode === "category"}
-          tooltipFormatter={(key) => timeAxis.formatTooltip(key)}
-          hideXAxisLabels={hideXAxisLabels && timeAxis.mode === "category"}
-          sync={
-            sync
-              ? {
-                  activeKey: chartData.find(
-                    (_, index) =>
-                      String(
-                        parseChartTimestamp(
-                          groupedData[index]?.time_dimension,
-                        )?.getTime() ?? groupedData[index]?.time_dimension,
-                      ) === sync.activeKey,
-                  )?.key,
-                  onActiveKeyChange: (key) =>
-                    sync.onActiveKeyChange(
-                      key === undefined
-                        ? undefined
-                        : String(parseChartTimestamp(key)?.getTime() ?? key),
-                    ),
-                }
-              : undefined
-          }
-        />
+        <StackedBarChart {...chartProps} />
       </div>
     </div>
   );
